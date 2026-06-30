@@ -1,6 +1,7 @@
-import { Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { CalendarDay, Holiday, Member, Vacation } from '../../core/models/models';
+import { take } from 'rxjs/operators';
+import { CalendarDay, Holiday, Member, Vacation, VacationType } from '../../core/models/models';
 import { MockDataService } from '../../core/services/mock-data.service';
 import { combineLatest } from 'rxjs';
 
@@ -35,22 +36,29 @@ import { combineLatest } from 'rxjs';
             <div class="flex flex-col gap-0.5 h-full">
               <span [class]="getDayNumberClass(day)">{{ day.date.getDate() }}</span>
 
-              <!-- Holiday badge -->
-              <span *ngIf="day.holiday" class="text-[10px] bg-[#F7C873] text-[#92400E] rounded px-1 py-0.5 font-medium truncate">
-                {{ day.holiday.name }}
-              </span>
+              <!-- Holiday badges (per country) -->
+              <ng-container *ngFor="let h of day.holidays">
+                <span [class]="getHolidayBadgeClass(h.country)"
+                      class="text-[10px] rounded px-1 py-0.5 font-medium truncate">
+                  {{ getCountryFlag(h.country) }}{{ h.name }}
+                </span>
+              </ng-container>
 
-              <!-- Your vacation badge -->
-              <span *ngIf="day.yourVacation" class="text-[10px] bg-[#B48CF2] text-white rounded px-1 py-0.5 font-medium">
-                You
+              <!-- Your vacation badge (type-aware) -->
+              <span *ngIf="day.yourVacation"
+                    [class]="getYourVacationClass(day.yourVacation.type)"
+                    class="text-[10px] rounded px-1 py-0.5 font-medium">
+                {{ getYourVacationLabel(day.yourVacation.type) }}
               </span>
 
               <!-- Others vacations -->
               <ng-container *ngIf="day.othersVacations.length > 0">
-                <span *ngFor="let ov of day.othersVacations.slice(0, 2)" class="text-[10px] bg-[#7CC9A7] text-white rounded px-1 py-0.5 font-medium truncate">
+                <span *ngFor="let ov of day.othersVacations.slice(0, 2)"
+                      class="text-[10px] bg-[#7CC9A7] text-white rounded px-1 py-0.5 font-medium truncate">
                   {{ ov.member.name.split(' ')[0] }}
                 </span>
-                <span *ngIf="day.othersVacations.length > 2" class="text-[10px] bg-gray-200 text-[#64748B] rounded px-1 py-0.5 font-medium">
+                <span *ngIf="day.othersVacations.length > 2"
+                      class="text-[10px] bg-gray-200 text-[#64748B] rounded px-1 py-0.5 font-medium">
                   +{{ day.othersVacations.length - 2 }} more
                 </span>
               </ng-container>
@@ -62,13 +70,22 @@ import { combineLatest } from 'rxjs';
       <!-- Legend -->
       <div class="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100">
         <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
-          <span class="w-3 h-3 rounded-sm bg-[#7CC9A7]"></span> Vacation (Others)
+          <span class="w-3 h-3 rounded-sm bg-[#7CC9A7]"></span> Others
         </div>
         <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
-          <span class="w-3 h-3 rounded-sm bg-[#B48CF2]"></span> Your Days
+          <span class="w-3 h-3 rounded-sm bg-[#B48CF2]"></span> Vacation
         </div>
         <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
-          <span class="w-3 h-3 rounded-sm bg-[#F7C873]"></span> Public Holiday
+          <span class="w-3 h-3 rounded-sm bg-[#06B6D4]"></span> Compensation
+        </div>
+        <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
+          <span class="w-3 h-3 rounded-sm bg-[#F97316]"></span> Event
+        </div>
+        <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
+          <span class="w-3 h-3 rounded-sm bg-[#F7C873]"></span> 🇦🇺 Holiday
+        </div>
+        <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
+          <span class="w-3 h-3 rounded-sm bg-red-100"></span> 🇻🇳 Holiday
         </div>
         <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
           <span class="w-3 h-3 rounded-sm bg-gray-100 border border-gray-200"></span> Weekend
@@ -101,7 +118,6 @@ export class CalendarComponent implements OnInit {
   ngOnInit(): void {
     const today = new Date();
     if (today.getDate() > 20) {
-      // Show next month
       const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
       this.viewYear = next.getFullYear();
       this.viewMonth = next.getMonth() + 1;
@@ -120,13 +136,13 @@ export class CalendarComponent implements OnInit {
     });
   }
 
-  buildCalendar(vacations: any[], holidays: any[], user: Member | null): void {
+  buildCalendar(vacations: Vacation[], holidays: Holiday[], user: Member | null): void {
     const today = new Date();
     const firstDay = new Date(this.viewYear, this.viewMonth - 1, 1);
     const lastDay = new Date(this.viewYear, this.viewMonth, 0);
     const days: CalendarDay[] = [];
 
-    let startDow = firstDay.getDay();
+    const startDow = firstDay.getDay();
     const leadingBlanks = startDow === 0 ? 6 : startDow - 1;
     for (let i = 0; i < leadingBlanks; i++) {
       days.push(this.emptyDay());
@@ -139,30 +155,29 @@ export class CalendarComponent implements OnInit {
       const isWeekend = dow === 0 || dow === 6;
       const isToday = dateStr === this.dataService.formatDate(today);
       const isPast = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const holiday = holidays.find((h: any) => h.date === dateStr);
+      const dayHolidays = holidays.filter(h => h.date === dateStr);
 
-      const dayVacations = vacations.filter((v: any) => v.date === dateStr);
-      const yourVacation = user ? dayVacations.find((v: any) => v.username === user.username) : undefined;
+      const dayVacations = vacations.filter(v => v.date === dateStr);
+      const yourVacation = user ? dayVacations.find(v => v.username === user.username) : undefined;
       const othersVacations = dayVacations
-        .filter((v: any) => !user || v.username !== user.username)
-        .map((v: any) => ({ vacation: v, member: this.dataService.getMemberByUsername(v.username)! }))
-        .filter((x: any) => !!x.member);
+        .filter(v => !user || v.username !== user.username)
+        .map(v => ({ vacation: v, member: this.dataService.getMemberByUsername(v.username)! }))
+        .filter(x => !!x.member);
 
-      days.push({ date, isCurrentMonth: true, isWeekend, isToday, isPast, holiday, yourVacation, othersVacations });
+      days.push({ date, isCurrentMonth: true, isWeekend, isToday, isPast, holidays: dayHolidays, yourVacation, othersVacations });
     }
 
     const remaining = (7 - (days.length % 7)) % 7;
     for (let i = 0; i < remaining; i++) {
-      const d = i + 1;
-      const date = new Date(this.viewYear, this.viewMonth, d);
-      days.push({ date, isCurrentMonth: false, isWeekend: false, isToday: false, isPast: false, holiday: undefined, yourVacation: undefined, othersVacations: [] });
+      const date = new Date(this.viewYear, this.viewMonth, i + 1);
+      days.push({ date, isCurrentMonth: false, isWeekend: false, isToday: false, isPast: false, holidays: [], yourVacation: undefined, othersVacations: [] });
     }
 
     this.calendarDays = days;
   }
 
   emptyDay(): CalendarDay {
-    return { date: null as any, isCurrentMonth: false, isWeekend: false, isToday: false, isPast: false, holiday: undefined, yourVacation: undefined, othersVacations: [] };
+    return { date: null as any, isCurrentMonth: false, isWeekend: false, isToday: false, isPast: false, holidays: [], yourVacation: undefined, othersVacations: [] };
   }
 
   getCellClass(day: CalendarDay): string {
@@ -182,6 +197,31 @@ export class CalendarComponent implements OnInit {
     return `${base} text-[#1E293B]`;
   }
 
+  getCountryFlag(country?: string): string {
+    const c = (country ?? '').toLowerCase();
+    if (c.includes('aus') || c === 'au') return '🇦🇺 ';
+    if (c.includes('viet') || c === 'vn') return '🇻🇳 ';
+    return '';
+  }
+
+  getHolidayBadgeClass(country?: string): string {
+    const c = (country ?? '').toLowerCase();
+    if (c.includes('viet') || c === 'vn') return 'bg-red-100 text-red-700';
+    return 'bg-[#F7C873] text-[#92400E]';
+  }
+
+  getYourVacationLabel(type: VacationType): string {
+    if (type === 'Compensation') return 'Comp';
+    if (type === 'Event') return 'Event';
+    return 'You';
+  }
+
+  getYourVacationClass(type: VacationType): string {
+    if (type === 'Compensation') return 'bg-[#06B6D4] text-white';
+    if (type === 'Event') return 'bg-[#F97316] text-white';
+    return 'bg-[#B48CF2] text-white';
+  }
+
   prevMonth(): void {
     if (this.viewMonth === 1) { this.viewMonth = 12; this.viewYear--; }
     else this.viewMonth--;
@@ -189,7 +229,7 @@ export class CalendarComponent implements OnInit {
       this.dataService.vacations$,
       this.dataService.holidays$,
       this.dataService.authenticatedUser$,
-    ]).subscribe(([v, h, u]) => this.buildCalendar(v, h, u)).unsubscribe();
+    ]).pipe(take(1)).subscribe(([v, h, u]) => this.buildCalendar(v, h, u));
   }
 
   nextMonth(): void {
@@ -199,6 +239,6 @@ export class CalendarComponent implements OnInit {
       this.dataService.vacations$,
       this.dataService.holidays$,
       this.dataService.authenticatedUser$,
-    ]).subscribe(([v, h, u]) => this.buildCalendar(v, h, u)).unsubscribe();
+    ]).pipe(take(1)).subscribe(([v, h, u]) => this.buildCalendar(v, h, u));
   }
 }

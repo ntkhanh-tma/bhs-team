@@ -1,9 +1,9 @@
 import { Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Subject, Subscription } from 'rxjs';
+import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { MockDataService } from '../../core/services/mock-data.service';
-import { Holiday, Vacation } from '../../core/models/models';
+import { Holiday, Vacation, VacationType } from '../../core/models/models';
 
 interface DialogDay {
   date: Date | null;
@@ -14,6 +14,12 @@ interface DialogDay {
   isHoliday: boolean;
   isSelected: boolean;
   isToday: boolean;
+}
+
+interface TypeOption {
+  value: VacationType;
+  label: string;
+  activeClass: string;
 }
 
 @Component({
@@ -29,13 +35,22 @@ interface DialogDay {
         <!-- Header -->
         <div class="flex justify-between items-start mb-4">
           <div>
-            <h2 class="text-xl font-bold text-[#1E293B]">Register Vacation</h2>
+            <h2 class="text-xl font-bold text-[#1E293B]">Register {{ selectedType }}</h2>
             <p class="text-[#64748B] text-sm mt-1">
               Select or deselect days — blue dots are already registered.
             </p>
           </div>
           <button (click)="close.emit()"
                   class="text-[#64748B] hover:text-[#1E293B] text-xl leading-none">&times;</button>
+        </div>
+
+        <!-- Type selector -->
+        <div class="flex gap-2 mb-4">
+          <button *ngFor="let t of typeOptions"
+                  (click)="selectedType = t.value"
+                  [class]="getTypeButtonClass(t)">
+            {{ t.label }}
+          </button>
         </div>
 
         <!-- Month navigation -->
@@ -143,6 +158,14 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
   dayHeaders = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   calendarDays: DialogDay[] = [];
 
+  selectedType: VacationType = 'Vacation';
+
+  readonly typeOptions: TypeOption[] = [
+    { value: 'Vacation',      label: 'Vacation',      activeClass: 'bg-[#4F7DF3] text-white border-[#4F7DF3]' },
+    { value: 'Compensation',  label: 'Compensation',  activeClass: 'bg-[#06B6D4] text-white border-[#06B6D4]' },
+    { value: 'Event',         label: 'Event',         activeClass: 'bg-[#F97316] text-white border-[#F97316]' },
+  ];
+
   /** Dates the user has currently selected in the dialog. */
   selectedDates: string[] = [];
   /** Dates already persisted in the sheet when this month was loaded. */
@@ -192,7 +215,6 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
     this.viewYear = today.getFullYear();
     this.viewMonth = today.getMonth() + 1;
 
-    // Subscribe to remote vacation data to keep originalDates in sync
     this.dataService.vacations$.pipe(takeUntil(this.destroy$)).subscribe(v => {
       this.allVacations = v;
       this.loadMonthDates();
@@ -210,6 +232,15 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
     this.stopLockTimer();
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  // ── Type selector ─────────────────────────────────────────────────────────
+
+  getTypeButtonClass(t: TypeOption): string {
+    const base = 'flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors';
+    return this.selectedType === t.value
+      ? `${base} ${t.activeClass}`
+      : `${base} border-gray-200 text-[#64748B] hover:bg-gray-50`;
   }
 
   // ── Lock timer ────────────────────────────────────────────────────────────
@@ -242,7 +273,6 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
 
   // ── Calendar ──────────────────────────────────────────────────────────────
 
-  /** Load the user's registered dates for the current viewed month. */
   private loadMonthDates(): void {
     const user = this.dataService.currentUser;
     const ym = `${this.viewYear}-${String(this.viewMonth).padStart(2, '0')}`;
@@ -360,7 +390,7 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
     this.submitting = true;
     this.submitError = null;
 
-    this.dataService.submitVacation(this.addDates, this.removeDates, this.monthKey)
+    this.dataService.submitVacation(this.addDates, this.removeDates, this.monthKey, this.selectedType)
       .subscribe({
         next: result => {
           this.submitting = false;
@@ -369,7 +399,6 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
             this.close.emit();
           } else {
             this.submitError = result.error ?? 'Submission failed. Please try again.';
-            // Restart lock timer in case the error was a lock violation
             this.startLockTimer();
           }
         },

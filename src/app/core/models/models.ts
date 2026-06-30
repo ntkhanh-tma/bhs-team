@@ -1,3 +1,5 @@
+export type VacationType = 'Vacation' | 'Compensation' | 'Event';
+
 export interface Member {
   username: string;
   name: string;
@@ -12,12 +14,14 @@ export interface Member {
 export interface Holiday {
   date: string; // YYYY-MM-DD
   name: string;
+  country?: string; // e.g. 'Australia', 'Vietnam'
 }
 
 export interface Vacation {
   id: string;
   username: string;
   date: string; // YYYY-MM-DD
+  type: VacationType;
   note?: string;
 }
 
@@ -27,7 +31,7 @@ export interface CalendarDay {
   isWeekend: boolean;
   isToday: boolean;
   isPast: boolean;
-  holiday?: Holiday;
+  holidays: Holiday[];
   yourVacation?: Vacation;
   othersVacations: { vacation: Vacation; member: Member }[];
 }

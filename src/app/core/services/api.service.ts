@@ -3,7 +3,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { Member, Holiday, Vacation } from '../models/models';
+import { Member, Holiday, Vacation, VacationType } from '../models/models';
 
 interface SheetsResponse {
   range: string;
@@ -20,6 +20,7 @@ interface AppsScriptResponse {
 export interface VacationSubmitPayload {
   username: string;
   month: string;      // MM/YYYY
+  type: string;       // VacationType
   addDates: string[]; // YYYY-MM-DD
   removeDates: string[];
 }
@@ -29,6 +30,8 @@ const AVATAR_COLORS = [
   '#F97316', '#EC4899', '#06B6D4', '#84CC16',
   '#8B5CF6', '#EF4444', '#14B8A6', '#F59E0B',
 ];
+
+const VALID_TYPES: VacationType[] = ['Vacation', 'Compensation', 'Event'];
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -62,7 +65,7 @@ export class ApiService {
   }
 
   fetchVacations(): Observable<Vacation[]> {
-    const url = `${this.base}/Vacation-Plan!A:C?key=${this.key}`;
+    const url = `${this.base}/Vacation-Plan!A:D?key=${this.key}`;
     return this.http.get<SheetsResponse>(url).pipe(
       map(res => this.parseVacations(res.values ?? [])),
       catchError(err => {
@@ -125,24 +128,28 @@ export class ApiService {
 
   private parseHolidays(rows: string[][]): Holiday[] {
     if (!rows.length) return [];
+    // Header: Date | Name | Holiday-Country
     return rows.slice(1)
       .filter(r => r[0]?.trim())
       .map(row => ({
-        date: this.normalizeDate(row[0]),
-        name: (row[1] ?? 'Holiday').trim(),
+        date:    this.normalizeDate(row[0]),
+        name:    (row[1] ?? 'Holiday').trim(),
+        country: (row[2] ?? '').trim() || undefined,
       }))
       .filter(h => !!h.date);
   }
 
   private parseVacations(rows: string[][]): Vacation[] {
     if (!rows.length) return [];
-    // Header: Month | Username | Date
+    // Header: Month | Username | Date | Type
     return rows.slice(1)
       .filter(r => r[1]?.trim() && r[2]?.trim())
       .map(row => {
         const username = row[1].trim().toLowerCase();
-        const date = row[2].trim();
-        return { id: `${username}_${date}`, username, date };
+        const date     = row[2].trim();
+        const rawType  = (row[3] ?? '').trim() as VacationType;
+        const type: VacationType = VALID_TYPES.includes(rawType) ? rawType : 'Vacation';
+        return { id: `${username}_${date}`, username, date, type };
       });
   }
 

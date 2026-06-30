@@ -27,6 +27,10 @@ import { MockDataService } from '../../core/services/mock-data.service';
            class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#64748B] hover:bg-gray-50 transition-colors">
           <span>🏠</span> Home
         </a>
+        <a routerLink="/holidays" routerLinkActive="bg-[#EEF2FF] text-[#4F7DF3] font-semibold"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#64748B] hover:bg-gray-50 transition-colors">
+          <span>📅</span> Holidays
+        </a>
         <a routerLink="/history" routerLinkActive="bg-[#EEF2FF] text-[#4F7DF3] font-semibold"
            class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#64748B] hover:bg-gray-50 transition-colors">
           <span>📋</span> History

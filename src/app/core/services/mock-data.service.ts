@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of, combineLatest } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
-import { Member, Holiday, Vacation } from '../models/models';
+import { Member, Holiday, Vacation, VacationType } from '../models/models';
 import { ApiService } from './api.service';
 
 const LOCK_KEY = 'vacation_submission_lock';
@@ -111,6 +111,7 @@ export class MockDataService {
     addDates: string[],
     removeDates: string[],
     month: string, // MM/YYYY
+    type: VacationType,
   ): Observable<{ success: boolean; error?: string }> {
     const user = this.authenticatedUser$$.value;
     if (!user) return of({ success: false, error: 'You must be logged in to submit.' });
@@ -133,6 +134,7 @@ export class MockDataService {
     return this.api.submitVacationChanges({
       username: user.username,
       month,
+      type,
       addDates,
       removeDates,
     }).pipe(
@@ -148,6 +150,7 @@ export class MockDataService {
           id: `${user.username}_${date}`,
           username: user.username,
           date,
+          type,
         }));
         this.vacationsSubject.next([...afterRemove, ...newVacs]);
 

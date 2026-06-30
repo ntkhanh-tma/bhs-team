@@ -7,6 +7,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/home/home.component').then(m => m.HomeComponent),
   },
   {
+    path: 'holidays',
+    loadComponent: () => import('./features/holidays/holidays.component').then(m => m.HolidaysComponent),
+  },
+  {
     path: 'history',
     loadComponent: () => import('./features/history/history.component').then(m => m.HistoryComponent),
   },
