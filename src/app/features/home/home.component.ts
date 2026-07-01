@@ -14,18 +14,19 @@ import { combineLatest } from 'rxjs';
     <div class="flex gap-6 h-full">
       <!-- Main calendar area -->
       <div class="flex-1 min-w-0">
-        <div class="flex items-start justify-between mb-6">
-          <div>
+        <div class="mb-6">
+          <div class="flex items-center gap-3 flex-wrap">
             <h1 class="text-2xl font-bold text-[#1E293B]">Welcome! Plan your time off.</h1>
-            <p class="text-[#64748B] text-sm mt-1">View team availability and register your vacation.</p>
+            <button
+              *ngIf="currentUser"
+              (click)="showRegisterDialog = true"
+              class="flex items-center gap-1.5 bg-[#003bc4] text-white px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-[#002da3] whitespace-nowrap flex-shrink-0"
+            >
+              <img src="images/holidays.png" class="w-4 h-4 object-contain brightness-0 invert" alt="">
+              Register Vacation
+            </button>
           </div>
-          <button
-            *ngIf="currentUser"
-            (click)="showRegisterDialog = true"
-            class="flex items-center gap-2 bg-[#003bc4] text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[#002da3] whitespace-nowrap"
-          >
-            + Register Vacation
-          </button>
+          <p class="text-[#64748B] text-sm mt-1">View team availability and register your vacation.</p>
         </div>
         <app-calendar></app-calendar>
       </div>

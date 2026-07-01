@@ -21,9 +21,15 @@ import { combineLatest } from 'rxjs';
         <button (click)="nextMonth()" class="p-1 rounded hover:bg-gray-100 text-[#64748B]">&#8250;</button>
       </div>
 
-      <!-- Day headers -->
+      <!-- Day headers — Sat/Sun tinted -->
       <div class="grid grid-cols-7 mb-1">
-        <div *ngFor="let d of dayHeaders" class="text-center text-xs font-medium text-[#64748B] py-2">{{ d }}</div>
+        <div *ngFor="let d of dayHeaders; let i = index"
+             class="text-center text-xs font-semibold py-2 rounded"
+             [class.text-[#64748B]]="i < 5"
+             [class.text-slate-400]="i >= 5"
+             [class.bg-slate-100]="i >= 5">
+          {{ d }}
+        </div>
       </div>
 
       <!-- Days grid -->
@@ -185,7 +191,7 @@ export class CalendarComponent implements OnInit {
     const base = 'min-h-[80px] p-1.5 border border-gray-100 text-left';
     if (!day.date) return `${base} invisible`;
     if (!day.isCurrentMonth) return `${base} bg-gray-50/50`;
-    if (day.isWeekend) return `${base} bg-gray-50`;
+    if (day.isWeekend) return `${base} bg-slate-100 border-slate-200`;
     if (day.isToday) return `${base} bg-blue-50/50 ring-2 ring-[#003bc4] ring-inset`;
     return `${base} bg-white hover:bg-gray-50/50`;
   }
@@ -194,7 +200,7 @@ export class CalendarComponent implements OnInit {
     const base = 'text-sm font-medium mb-0.5 w-6 h-6 flex items-center justify-center rounded-full';
     if (day.isToday) return `${base} bg-[#003bc4] text-white`;
     if (!day.isCurrentMonth) return `${base} text-gray-300`;
-    if (day.isWeekend) return `${base} text-gray-400`;
+    if (day.isWeekend) return `${base} text-slate-400`;
     return `${base} text-[#1E293B]`;
   }
 

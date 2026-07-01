@@ -7,7 +7,7 @@ import { Holiday, Member, Vacation, VacationType } from '../../core/models/model
 import { MockDataService } from '../../core/services/mock-data.service';
 
 type UpcomingItem =
-  | { kind: 'vacation'; date: string; label: string; type: VacationType }
+  | { kind: 'vacation'; date: string; label: string; type: VacationType; monthAbbr: string; dayNum: number }
   | { kind: 'holiday'; date: string; label: string; name: string; monthAbbr: string; dayNum: number; proximity: string; isUrgent: boolean };
 
 @Component({
@@ -49,7 +49,7 @@ type UpcomingItem =
           </a>
         </nav>
 
-        <!-- Upcoming: vacations + VN holidays merged -->
+        <!-- Upcoming: vacations + VN holidays merged, sorted by date -->
         <div *ngIf="currentUser && upcomingItems.length > 0"
              class="border-t border-gray-100 px-3 py-3">
           <p class="text-[10px] font-bold uppercase tracking-widest text-[#94a3b8] mb-2.5">Upcoming</p>
@@ -62,14 +62,12 @@ type UpcomingItem =
                    class="flex items-center gap-2.5 rounded-lg p-2"
                    [class.bg-red-50]="!asHoliday(item).isUrgent"
                    [class.bg-red-100]="asHoliday(item).isUrgent">
-                <!-- Date chip -->
                 <div class="w-9 h-9 rounded-lg flex flex-col items-center justify-center flex-shrink-0"
                      [class.bg-red-400]="!asHoliday(item).isUrgent"
                      [class.bg-red-600]="asHoliday(item).isUrgent">
-                  <span class="text-[8px] font-bold text-red-100 uppercase leading-none tracking-wider">{{ asHoliday(item).monthAbbr }}</span>
-                  <span class="text-sm font-bold text-white leading-tight">{{ asHoliday(item).dayNum }}</span>
+                  <span class="text-[8px] font-bold text-red-100 uppercase leading-none tracking-wider">{{ item.monthAbbr }}</span>
+                  <span class="text-sm font-bold text-white leading-tight">{{ item.dayNum }}</span>
                 </div>
-                <!-- Name + proximity -->
                 <div class="min-w-0 flex-1">
                   <p class="text-[11px] font-semibold text-[#1E293B] leading-tight"
                      style="overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2">
@@ -83,15 +81,22 @@ type UpcomingItem =
                 </div>
               </div>
 
-              <!-- Vacation row -->
+              <!-- Vacation card — same chip layout, type-colored -->
               <div *ngIf="item.kind === 'vacation'"
-                   class="flex items-center gap-2 rounded-lg px-2 py-1.5"
-                   [style.background-color]="vacTypeBg(asVacation(item).type)">
-                <span class="text-[10px] font-medium text-[#64748B] w-11 flex-shrink-0">{{ item.label }}</span>
-                <span class="text-[10px] font-semibold"
-                      [style.color]="vacTypeTextColor(asVacation(item).type)">
-                  {{ asVacation(item).type === 'Compensation' ? 'Comp' : asVacation(item).type }}
-                </span>
+                   class="flex items-center gap-2.5 rounded-lg p-2"
+                   [style.background-color]="vacTypeBgLight(asVacation(item).type)">
+                <div class="w-9 h-9 rounded-lg flex flex-col items-center justify-center flex-shrink-0"
+                     [style.background-color]="vacTypeChip(asVacation(item).type)">
+                  <span class="text-[8px] font-bold text-white/70 uppercase leading-none tracking-wider">{{ item.monthAbbr }}</span>
+                  <span class="text-sm font-bold text-white leading-tight">{{ item.dayNum }}</span>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[11px] font-semibold leading-tight"
+                     [style.color]="vacTypeTextColor(asVacation(item).type)">
+                    {{ vacTypeLabel(asVacation(item).type) }}
+                  </p>
+                  <p class="text-[9px] text-[#94a3b8] leading-tight mt-0.5">Your day off</p>
+                </div>
               </div>
 
             </ng-container>
@@ -160,12 +165,18 @@ export class SidebarComponent implements OnInit, OnDestroy {
       ? vacations
           .filter(v => v.username === user.username && v.date >= todayStr)
           .sort((a, b) => a.date.localeCompare(b.date))
-          .map(v => ({
-            kind: 'vacation' as const,
-            date: v.date,
-            label: this.shortDate(v.date),
-            type: v.type,
-          }))
+          .map(v => {
+            const [y, m, d] = v.date.split('-').map(Number);
+            const dt = new Date(y, m - 1, d);
+            return {
+              kind: 'vacation' as const,
+              date: v.date,
+              label: this.shortDate(v.date),
+              type: v.type,
+              monthAbbr: dt.toLocaleDateString('en-US', { month: 'short' }),
+              dayNum: d,
+            };
+          })
       : [];
 
     const holItems: UpcomingItem[] = holidays
@@ -192,13 +203,32 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.upcomingItems = merged.slice(0, this.MAX_ITEMS);
   }
 
-  // Narrowing helpers — Angular templates can't narrow union types directly
-  asHoliday(item: UpcomingItem) {
-    return item as Extract<UpcomingItem, { kind: 'holiday' }>;
+  // Template narrowing helpers
+  asHoliday(item: UpcomingItem) { return item as Extract<UpcomingItem, { kind: 'holiday' }>; }
+  asVacation(item: UpcomingItem) { return item as Extract<UpcomingItem, { kind: 'vacation' }>; }
+
+  vacTypeChip(type: VacationType): string {
+    if (type === 'Compensation') return '#0E7490';
+    if (type === 'Event') return '#C2410C';
+    return '#7E22CE';
   }
 
-  asVacation(item: UpcomingItem) {
-    return item as Extract<UpcomingItem, { kind: 'vacation' }>;
+  vacTypeBgLight(type: VacationType): string {
+    if (type === 'Compensation') return '#ECFEFF';
+    if (type === 'Event') return '#FFF7ED';
+    return '#FAF5FF';
+  }
+
+  vacTypeTextColor(type: VacationType): string {
+    if (type === 'Compensation') return '#0E7490';
+    if (type === 'Event') return '#C2410C';
+    return '#7E22CE';
+  }
+
+  vacTypeLabel(type: VacationType): string {
+    if (type === 'Compensation') return 'Comp Day';
+    if (type === 'Event') return 'Event Day';
+    return 'Vacation Day';
   }
 
   private proximity(days: number): string {
@@ -224,18 +254,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private shortDate(dateStr: string): string {
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-
-  vacTypeBg(type: VacationType): string {
-    if (type === 'Compensation') return '#ECFEFF';
-    if (type === 'Event') return '#FFF7ED';
-    return '#FAF5FF';
-  }
-
-  vacTypeTextColor(type: VacationType): string {
-    if (type === 'Compensation') return '#0E7490';
-    if (type === 'Event') return '#C2410C';
-    return '#7E22CE';
   }
 
   get shortDisplayName(): string {
