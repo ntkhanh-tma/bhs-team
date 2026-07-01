@@ -25,6 +25,12 @@ export interface VacationSubmitPayload {
   removeDates: string[];
 }
 
+export interface DatabaseLookups {
+  teams: string[];
+  roles: string[];
+  dcs: string[];
+}
+
 export interface ProfileUpdatePayload {
   action: 'updateProfile';
   id: string;
@@ -32,6 +38,7 @@ export interface ProfileUpdatePayload {
   updates: {
     dc?: string;
     department?: string;
+    role?: string;
     username?: string;
     ip?: string;
     publicIp?: string;
@@ -98,6 +105,14 @@ export class ApiService {
     );
   }
 
+  fetchDatabaseLookups(): Observable<DatabaseLookups> {
+    const url = `${this.base}/Database!A:C?key=${this.key}`;
+    return this.http.get<SheetsResponse>(url).pipe(
+      map(res => this.parseDatabaseLookups(res.values ?? [])),
+      catchError(() => of({ teams: [], roles: [], dcs: [] }))
+    );
+  }
+
   fetchVacations(): Observable<Vacation[]> {
     const url = `${this.base}/Vacation-Plan!A:D?key=${this.key}`;
     return this.http.get<SheetsResponse>(url).pipe(
@@ -146,6 +161,16 @@ export class ApiService {
   }
 
   // ── Parsers ───────────────────────────────────────────────────────────────
+
+  private parseDatabaseLookups(rows: string[][]): DatabaseLookups {
+    if (rows.length < 2) return { teams: [], roles: [], dcs: [] };
+    const data = rows.slice(1);
+    return {
+      teams: [...new Set(data.map(r => (r[0] ?? '').trim()).filter(Boolean))],
+      roles: [...new Set(data.map(r => (r[1] ?? '').trim()).filter(Boolean))],
+      dcs:   [...new Set(data.map(r => (r[2] ?? '').trim()).filter(Boolean))],
+    };
+  }
 
   private parseMembers(rows: string[][]): Member[] {
     if (!rows.length) return [];

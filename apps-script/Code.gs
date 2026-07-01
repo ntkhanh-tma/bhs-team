@@ -172,6 +172,7 @@ function handleUpdateProfile(payload) {
   // Update only the columns the client is allowed to change
   if (updates.dc         !== undefined) sheet.getRange(targetRow, 2).setValue(String(updates.dc));
   if (updates.department !== undefined) sheet.getRange(targetRow, 3).setValue(String(updates.department));
+  if (updates.role       !== undefined) sheet.getRange(targetRow, 4).setValue(String(updates.role));
   if (updates.username   !== undefined) sheet.getRange(targetRow, 6).setValue(String(updates.username).trim().toLowerCase());
   if (updates.ip         !== undefined) sheet.getRange(targetRow, 7).setValue(String(updates.ip));
   if (updates.publicIp   !== undefined) sheet.getRange(targetRow, 8).setValue(String(updates.publicIp));

@@ -196,6 +196,7 @@ export class DataService {
           return {
             ...m,
             department: updates.department  ?? m.department,
+            position:   updates.role        !== undefined ? (updates.role || m.position)      : m.position,
             username:   newUsername,
             dc:         updates.dc          !== undefined ? (updates.dc || undefined)         : m.dc,
             ip:         updates.ip          !== undefined ? (updates.ip || undefined)         : m.ip,

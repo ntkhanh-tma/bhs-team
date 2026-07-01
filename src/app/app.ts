@@ -90,29 +90,32 @@ const chipColor = (name: string, seed = 0): ChipColor => {
 
             <!-- Skeleton while loading -->
             <div *ngIf="quoteLoading" class="flex flex-col items-center gap-1.5">
-              <div class="h-2 w-48 rounded-full bg-gray-100 animate-pulse"></div>
-              <div class="h-1.5 w-28 rounded-full bg-gray-100 animate-pulse"></div>
+              <div class="h-2.5 w-52 rounded-full bg-gray-100 animate-pulse"></div>
+              <div class="h-2 w-32 rounded-full bg-gray-100 animate-pulse"></div>
             </div>
 
             <!-- Quote card -->
             <div *ngIf="!quoteLoading && quote"
-                 class="relative max-w-sm text-center px-6 group"
+                 class="relative max-w-md text-center px-7 py-2 group rounded-xl
+                        bg-gradient-to-r from-blue-50/70 via-violet-50/50 to-indigo-50/70"
                  [title]="quote.quote + ' — ' + quote.author">
               <!-- Decorative opening mark -->
-              <span class="absolute top-0 left-1 text-4xl font-serif leading-none select-none"
-                    style="color:#003bc4;opacity:0.13;">&ldquo;</span>
+              <span class="absolute top-0.5 left-2 text-4xl font-serif leading-none select-none
+                           bg-gradient-to-br from-blue-400 to-violet-500 bg-clip-text text-transparent">&ldquo;</span>
               <!-- Decorative closing mark -->
-              <span class="absolute bottom-0 right-1 text-4xl font-serif leading-none select-none"
-                    style="color:#003bc4;opacity:0.13;">&rdquo;</span>
+              <span class="absolute bottom-0.5 right-2 text-4xl font-serif leading-none select-none
+                           bg-gradient-to-br from-violet-500 to-indigo-500 bg-clip-text text-transparent">&rdquo;</span>
 
-              <!-- Quote text -->
-              <p class="font-serif italic text-[11px] leading-snug text-[#475569] line-clamp-2">
+              <!-- Quote text — 25% bigger than original 11px -->
+              <p class="font-serif italic text-[14px] leading-snug text-[#3d4f6a] line-clamp-2">
                 {{ quote.quote }}
               </p>
 
-              <!-- Attribution row -->
-              <div class="flex items-center justify-center gap-1.5 mt-0.5">
-                <span class="text-[10px] font-semibold text-[#003bc4]">— {{ quote.author }}</span>
+              <!-- Attribution row — 25% bigger than original 10px -->
+              <div class="flex items-center justify-center gap-1.5 mt-1">
+                <span class="text-xs font-semibold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
+                  — {{ quote.author }}
+                </span>
               </div>
 
               <!-- Hover-reveal refresh -->
@@ -131,16 +134,16 @@ const chipColor = (name: string, seed = 0): ChipColor => {
           <div *ngIf="currentUser; else loginBtn" class="flex items-center gap-3 sm:gap-4">
 
             <!-- Name + chips (chips hidden on very small screens) -->
-            <div class="flex items-center gap-2.5 flex-wrap justify-end">
-              <span class="text-xl font-semibold text-[#1E293B] hidden sm:inline">{{ currentUser.name }}</span>
+            <div class="flex items-center gap-2 flex-wrap justify-end">
+              <span class="text-[15px] font-semibold text-[#1E293B] hidden sm:inline">{{ currentUser.name }}</span>
               <span *ngIf="currentUser.department"
-                    class="hidden md:inline-block text-base font-bold px-3 py-1 rounded-full select-none"
+                    class="hidden md:inline-block text-xs font-bold px-2.5 py-0.5 rounded-full select-none"
                     [style.background-color]="teamChip.bg"
                     [style.color]="teamChip.text">
                 {{ currentUser.department }}
               </span>
               <span *ngIf="currentUser.position"
-                    class="hidden md:inline-block text-base font-bold px-3 py-1 rounded-full select-none"
+                    class="hidden md:inline-block text-xs font-bold px-2.5 py-0.5 rounded-full select-none"
                     [style.background-color]="roleChip.bg"
                     [style.color]="roleChip.text">
                 {{ currentUser.position }}
