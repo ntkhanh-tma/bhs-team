@@ -29,7 +29,7 @@ type UpcomingItem =
 
       <!-- Brand header -->
       <div class="bg-white border-b border-gray-100 px-4 py-2.5 flex items-center justify-center flex-shrink-0">
-        <img src="https://bestmed.au/wp-content/uploads/2024/12/bestmed_logo.png"
+        <img src="images/bestmed_logo.png"
              class="h-[42px] w-auto object-contain" alt="BESTMED">
       </div>
 

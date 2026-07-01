@@ -9,10 +9,9 @@ import { DataService } from './core/services/data.service';
 import { Member } from './core/models/models';
 
 interface DailyQuote {
-  _id: string;
-  content: string;
+  id: number;
+  quote: string;
   author: string;
-  tags: string[];
 }
 
 interface ChipColor { bg: string; text: string; }
@@ -98,7 +97,7 @@ const chipColor = (name: string, seed = 0): ChipColor => {
             <!-- Quote card -->
             <div *ngIf="!quoteLoading && quote"
                  class="relative max-w-sm text-center px-6 group"
-                 [title]="quote.content + ' — ' + quote.author">
+                 [title]="quote.quote + ' — ' + quote.author">
               <!-- Decorative opening mark -->
               <span class="absolute top-0 left-1 text-4xl font-serif leading-none select-none"
                     style="color:#003bc4;opacity:0.13;">&ldquo;</span>
@@ -108,16 +107,12 @@ const chipColor = (name: string, seed = 0): ChipColor => {
 
               <!-- Quote text -->
               <p class="font-serif italic text-[11px] leading-snug text-[#475569] line-clamp-2">
-                {{ quote.content }}
+                {{ quote.quote }}
               </p>
 
               <!-- Attribution row -->
               <div class="flex items-center justify-center gap-1.5 mt-0.5">
                 <span class="text-[10px] font-semibold text-[#003bc4]">— {{ quote.author }}</span>
-                <span *ngIf="quote.tags.length > 0"
-                      class="text-[9px] bg-[#EFF6FF] text-[#1D4ED8] px-1.5 py-px rounded-full font-medium leading-tight">
-                  {{ quote.tags[0] }}
-                </span>
               </div>
 
               <!-- Hover-reveal refresh -->
@@ -225,7 +220,7 @@ export class AppComponent implements OnInit {
   fetchQuote(): void {
     this.quoteLoading = true;
     this.quote = null;
-    this.http.get<DailyQuote>('https://api.quotable.io/random').subscribe({
+    this.http.get<DailyQuote>('https://dummyjson.com/quotes/random').subscribe({
       next: q => { this.quote = q; this.quoteLoading = false; },
       error: () => { this.quoteLoading = false; },
     });
