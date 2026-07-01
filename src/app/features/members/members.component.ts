@@ -1,6 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { MockDataService } from '../../core/services/mock-data.service';
 import { Member } from '../../core/models/models';
 
@@ -177,12 +180,14 @@ const teamColorOf = (name: string): TeamColor => {
     </div>
   `,
 })
-export class MembersComponent implements OnInit {
+export class MembersComponent implements OnInit, OnDestroy {
   allMembers: Member[] = [];
   teamGroups: TeamGroup[] = [];
   vacationCounts = new Map<string, number>();
   private teamColorMap = new Map<string, TeamColor>();
+  private destroy$ = new Subject<void>();
 
+  currentUser: Member | null = null;
   selectedTeamName: string | null = null;
   memberSearch = '';
   showAll = false;
@@ -208,9 +213,15 @@ export class MembersComponent implements OnInit {
     return this.showAll ? this.tableMembers : this.tableMembers.slice(0, this.tableLimit);
   }
 
-  constructor(private dataService: MockDataService) {}
+  constructor(private dataService: MockDataService, private router: Router) {}
+
+  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
 
   ngOnInit(): void {
+    this.dataService.authenticatedUser$.pipe(takeUntil(this.destroy$)).subscribe(u => {
+      this.currentUser = u;
+      if (!u && !this.dataService.loading) this.router.navigate(['/home']);
+    });
     this.dataService.members$.subscribe(members => {
       this.allMembers = members;
       this.buildTeams();

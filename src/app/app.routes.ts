@@ -18,5 +18,9 @@ export const routes: Routes = [
     path: 'members',
     loadComponent: () => import('./features/members/members.component').then(m => m.MembersComponent),
   },
+  {
+    path: 'profile',
+    loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent),
+  },
   { path: '**', redirectTo: 'home' },
 ];

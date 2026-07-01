@@ -57,17 +57,18 @@ import { combineLatest } from 'rxjs';
                 {{ getYourVacationLabel(day.yourVacation.type) }}
               </span>
 
-              <!-- Others vacations -->
-              <ng-container *ngIf="day.othersVacations.length > 0">
-                <span *ngFor="let ov of day.othersVacations.slice(0, 2)"
-                      class="text-[10px] bg-[#7CC9A7] text-white rounded px-1 py-0.5 font-medium truncate">
-                  {{ ov.member.name.split(' ')[0] }}
+              <!-- Others vacations — emoji tile grid -->
+              <div *ngIf="day.othersVacations.length > 0" class="flex flex-wrap gap-0.5 mt-0.5">
+                <span *ngFor="let ov of day.othersVacations.slice(0, 6)"
+                      class="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-sm leading-none select-none cursor-default"
+                      [title]="ov.member.name">
+                  {{ ov.member.avatarUrl }}
                 </span>
-                <span *ngIf="day.othersVacations.length > 2"
-                      class="text-[10px] bg-gray-200 text-[#64748B] rounded px-1 py-0.5 font-medium">
-                  +{{ day.othersVacations.length - 2 }} more
+                <span *ngIf="day.othersVacations.length > 6"
+                      class="w-5 h-5 rounded bg-gray-200 flex items-center justify-center text-[8px] font-semibold text-[#64748B] leading-none">
+                  +{{ day.othersVacations.length - 6 }}
                 </span>
-              </ng-container>
+              </div>
             </div>
           </ng-container>
         </div>
@@ -76,7 +77,7 @@ import { combineLatest } from 'rxjs';
       <!-- Legend -->
       <div class="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100">
         <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
-          <span class="w-3 h-3 rounded-sm bg-[#7CC9A7]"></span> Others
+          <span class="w-3 h-3 rounded-sm bg-gray-100 border border-gray-200 flex items-center justify-center text-[8px]">🐱</span> Others
         </div>
         <div class="flex items-center gap-1.5 text-xs text-[#64748B]">
           <span class="w-3 h-3 rounded-sm bg-[#B48CF2]"></span> Vacation

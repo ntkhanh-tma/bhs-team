@@ -1,16 +1,23 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { MockDataService } from '../../core/services/mock-data.service';
 import { Member, Vacation } from '../../core/models/models';
+
+interface GanttBar {
+  offset: number; // % from left within the track
+  width:  number; // % width within the track
+}
 
 interface HistoryEntry {
   member: Member;
   vacations: Vacation[];
   dateRange: string;
   dayCount: number;
-  ganttOffset: number;
-  ganttWidth: number;
+  ganttBars: GanttBar[]; // one per consecutive date run
   color: string;
 }
 
@@ -26,8 +33,7 @@ interface MonthGroup {
   year: number;
   month: number;
   entries: HistoryEntry[];
-  minDay: number;
-  maxDay: number;
+  daysInMonth: number;
   calendarCells: CalendarCell[];
 }
 
@@ -67,51 +73,81 @@ interface MonthGroup {
 
       <!-- Month groups -->
       <div *ngFor="let group of filteredGroups" class="mb-8">
-        <h3 class="text-base font-semibold text-[#1E293B] mb-3">{{ group.label }}</h3>
+
+        <!-- Month header + export button -->
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-semibold text-[#1E293B]">{{ group.label }}</h3>
+          <button (click)="exportMonth(group)"
+                  title="Export month as image"
+                  class="flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#1E293B] border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 transition-colors">
+            &#128247; Export
+          </button>
+        </div>
 
         <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
 
           <!-- ── Timeline view ─────────────────────────────────────────────── -->
           <div *ngIf="viewMode === 'timeline'" class="flex">
-            <!-- Left: member list -->
-            <div class="w-80 flex-shrink-0 border-r border-gray-100">
+
+            <!-- Left: member info panel -->
+            <div class="w-52 flex-shrink-0 border-r border-gray-100">
+              <!-- Spacer matching tick-header height -->
+              <div class="h-9 border-b border-gray-100 bg-gray-50/80"></div>
               <div *ngFor="let entry of group.entries; let last = last"
-                   [class]="'flex items-center gap-3 px-4 py-3' + (last ? '' : ' border-b border-gray-50')">
-                <div class="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 text-xl flex-shrink-0 select-none">
+                   class="flex items-center gap-2.5 px-3 h-[52px]"
+                   [class.border-b]="!last"
+                   [class.border-gray-50]="!last">
+                <div class="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-lg flex-shrink-0 select-none">
                   {{ entry.member.avatarUrl }}
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="text-sm font-medium text-[#1E293B] truncate">{{ entry.member.name }}</p>
-                  <p class="text-xs text-[#64748B]">{{ entry.dateRange }}</p>
+                  <p class="text-xs font-semibold text-[#1E293B] truncate">{{ entry.member.name }}</p>
+                  <p class="text-[10px] text-[#94a3b8]">
+                    {{ entry.dayCount }} day{{ entry.dayCount !== 1 ? 's' : '' }}
+                    · {{ entry.dateRange }}
+                  </p>
                 </div>
-                <span class="text-xs font-semibold px-2 py-1 rounded-full text-white flex-shrink-0"
-                      [style.background-color]="entry.color">
-                  {{ entry.dayCount }} day{{ entry.dayCount !== 1 ? 's' : '' }}
-                </span>
               </div>
             </div>
 
-            <!-- Right: Gantt -->
-            <div class="flex-1 min-w-0 relative">
-              <div class="flex border-b border-gray-100 px-4 py-2">
+            <!-- Right: Gantt track -->
+            <div class="flex-1 min-w-0">
+              <!-- Day tick headers -->
+              <div class="h-9 flex items-end border-b border-gray-100 bg-gray-50/80 px-3 pb-1.5">
                 <div *ngFor="let tick of getMonthTicks(group)"
-                     class="text-xs text-[#64748B]" [style.width.%]="tick.widthPct">
+                     class="text-[10px] text-[#94a3b8] select-none"
+                     [style.width.%]="tick.widthPct">
                   {{ tick.label }}
                 </div>
               </div>
+
+              <!-- One row per member -->
               <div *ngFor="let entry of group.entries; let last = last"
-                   [class]="'relative flex items-center px-4 h-[54px]' + (last ? '' : ' border-b border-gray-50')">
-                <div *ngFor="let tick of getMonthTicks(group)"
-                     class="absolute top-0 bottom-0 border-l border-gray-50"
-                     [style.left]="tick.leftPct + '%'">
-                </div>
-                <div class="absolute h-5 rounded-full opacity-90"
-                     [style.left]="'calc(' + entry.ganttOffset + '% + 1rem)'"
-                     [style.width]="'calc(' + entry.ganttWidth + '% - 2rem * ' + entry.ganttWidth / 100 + ')'"
-                     [style.background-color]="entry.color">
+                   class="relative h-[52px] flex items-center"
+                   [class.border-b]="!last"
+                   [class.border-gray-50]="!last">
+                <!-- Track container (accounts for left/right padding) -->
+                <div class="absolute inset-y-0 left-3 right-3 flex items-center">
+                  <!-- Vertical grid lines -->
+                  <div *ngFor="let tick of getMonthTicks(group)"
+                       class="absolute inset-y-0 w-px bg-gray-100"
+                       [style.left.%]="tick.leftPct">
+                  </div>
+                  <!-- Bars: one per consecutive date run, so scattered days render separately -->
+                  <div *ngFor="let bar of entry.ganttBars"
+                       class="absolute rounded-full h-[14px]"
+                       [ngStyle]="{
+                         left:             bar.offset + '%',
+                         width:            bar.width + '%',
+                         minWidth:         '8px',
+                         backgroundColor:  entry.color,
+                         opacity:          '0.9'
+                       }">
+                  </div>
                 </div>
               </div>
             </div>
+
           </div>
 
           <!-- ── Calendar view ─────────────────────────────────────────────── -->
@@ -179,7 +215,7 @@ interface MonthGroup {
     </div>
   `,
 })
-export class HistoryComponent implements OnInit {
+export class HistoryComponent implements OnInit, OnDestroy {
   dayHeaders = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   allGroups: MonthGroup[] = [];
@@ -189,49 +225,45 @@ export class HistoryComponent implements OnInit {
   searchQuery = '';
   viewMode: 'calendar' | 'timeline' = 'timeline';
   currentUserUsername: string | null = null;
+  private destroy$ = new Subject<void>();
 
-  activeBtn  = 'px-3 py-1.5 text-sm rounded-lg bg-[#003bc4] text-white font-medium';
+  activeBtn   = 'px-3 py-1.5 text-sm rounded-lg bg-[#003bc4] text-white font-medium';
   inactiveBtn = 'px-3 py-1.5 text-sm rounded-lg border border-gray-200 text-[#64748B] hover:bg-gray-50';
 
-  constructor(private dataService: MockDataService) {}
+  constructor(private dataService: MockDataService, private router: Router) {}
+
+  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
 
   ngOnInit(): void {
-    this.dataService.authenticatedUser$.subscribe(u => {
+    this.dataService.authenticatedUser$.pipe(takeUntil(this.destroy$)).subscribe(u => {
       this.currentUserUsername = u?.username ?? null;
+      if (!u && !this.dataService.loading) this.router.navigate(['/home']);
       this.buildHistory();
     });
-    this.dataService.vacations$.subscribe(() => this.buildHistory());
+    this.dataService.vacations$.pipe(takeUntil(this.destroy$)).subscribe(() => this.buildHistory());
   }
 
   buildHistory(): void {
     const raw = this.dataService.getVacationsGroupedByMonth();
     this.allGroups = raw.map(group => {
+      const daysInMonth = new Date(group.year, group.month, 0).getDate();
+
       const entries: HistoryEntry[] = group.entries.map(e => {
         const dates = e.vacations.map(v => v.date).sort();
-        const firstDate = new Date(dates[0]);
-        const lastDate  = new Date(dates[dates.length - 1]);
-        const daysInMonth = new Date(group.year, group.month, 0).getDate();
-        const startDay = firstDate.getDate();
-        const endDay   = lastDate.getDate();
-        const isYou = e.member.username === (this.currentUserUsername ?? '');
-        const color = isYou ? '#B48CF2' : e.member.avatarColor ?? '#7CC9A7';
+        const isYou  = e.member.username === (this.currentUserUsername ?? '');
+        const color  = isYou ? '#B48CF2' : (e.member.avatarColor ?? '#7CC9A7');
 
-        let dateRange = '';
-        if (dates.length === 1) {
-          dateRange = this.formatShortDate(dates[0]);
-        } else {
-          dateRange = `${this.formatShortDate(dates[0])} – ${this.formatShortDate(dates[dates.length - 1])}`;
-        }
+        const dateRange = dates.length === 1
+          ? this.formatShortDate(dates[0])
+          : `${this.formatShortDate(dates[0])} – ${this.formatShortDate(dates[dates.length - 1])}`;
 
-        return {
-          member: e.member,
-          vacations: e.vacations,
-          dateRange,
-          dayCount: dates.length,
-          ganttOffset: ((startDay - 1) / daysInMonth) * 100,
-          ganttWidth:  ((endDay - startDay + 1) / daysInMonth) * 100,
-          color,
-        };
+        const runs = this.groupConsecutiveRuns(dates);
+        const ganttBars: GanttBar[] = runs.map(run => ({
+          offset: ((run.startDay - 1) / daysInMonth) * 100,
+          width:  ((run.endDay - run.startDay + 1) / daysInMonth) * 100,
+        }));
+
+        return { member: e.member, vacations: e.vacations, dateRange, dayCount: dates.length, ganttBars, color };
       });
 
       return {
@@ -239,14 +271,35 @@ export class HistoryComponent implements OnInit {
         year:  group.year,
         month: group.month,
         entries,
-        minDay: 1,
-        maxDay: new Date(group.year, group.month, 0).getDate(),
+        daysInMonth,
         calendarCells: this.buildCalendarCells(group.year, group.month, entries),
       };
     });
 
     this.availableMonths = this.allGroups.map(g => ({ key: `${g.year}-${g.month}`, label: g.label }));
     this.applyFilter();
+  }
+
+  /**
+   * Groups sorted YYYY-MM-DD date strings into runs of consecutive calendar days.
+   * E.g. ["2026-07-01","2026-07-02","2026-07-05"] → [{1,2},{5,5}]
+   */
+  private groupConsecutiveRuns(dates: string[]): { startDay: number; endDay: number }[] {
+    if (!dates.length) return [];
+    const days = dates.map(d => parseInt(d.split('-')[2], 10)).sort((a, b) => a - b);
+    const runs: { startDay: number; endDay: number }[] = [];
+    let start = days[0], end = days[0];
+    for (let i = 1; i < days.length; i++) {
+      if (days[i] === end + 1) {
+        end = days[i];
+      } else {
+        runs.push({ startDay: start, endDay: end });
+        start = days[i];
+        end = days[i];
+      }
+    }
+    runs.push({ startDay: start, endDay: end });
+    return runs;
   }
 
   private buildCalendarCells(year: number, month: number, entries: HistoryEntry[]): CalendarCell[] {
@@ -260,9 +313,9 @@ export class HistoryComponent implements OnInit {
     }
 
     for (let d = 1; d <= daysInMon; d++) {
-      const date = new Date(year, month - 1, d);
+      const date    = new Date(year, month - 1, d);
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const dow = date.getDay();
+      const dow     = date.getDay();
       cells.push({
         dayNum: d,
         dateStr,
@@ -299,14 +352,12 @@ export class HistoryComponent implements OnInit {
   }
 
   getMonthTicks(group: MonthGroup): { label: string; widthPct: number; leftPct: number }[] {
-    const daysInMonth = group.maxDay;
-    const ticks = [1, 5, 10, 15, 20, 25, 30].filter(d => d <= daysInMonth);
-    return ticks.map((d, i, arr) => ({
-      label: String(d),
-      widthPct: i < arr.length - 1
-        ? ((arr[i + 1] - d) / daysInMonth) * 100
-        : ((daysInMonth - d + 1) / daysInMonth) * 100,
-      leftPct: ((d - 1) / daysInMonth) * 100,
+    const d = group.daysInMonth;
+    const ticks = [1, 5, 10, 15, 20, 25, 30].filter(n => n <= d);
+    return ticks.map((n, i, arr) => ({
+      label:    String(n),
+      widthPct: i < arr.length - 1 ? ((arr[i + 1] - n) / d) * 100 : ((d - n + 1) / d) * 100,
+      leftPct:  ((n - 1) / d) * 100,
     }));
   }
 
@@ -314,4 +365,7 @@ export class HistoryComponent implements OnInit {
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
+
+  // Placeholder — image export to be implemented once design is ready
+  exportMonth(_group: MonthGroup): void {}
 }

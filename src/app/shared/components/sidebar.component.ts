@@ -17,7 +17,8 @@ interface NavTile {
 
 type UpcomingItem =
   | { kind: 'vacation'; date: string; label: string; type: VacationType; monthAbbr: string; dayNum: number }
-  | { kind: 'holiday'; date: string; label: string; name: string; monthAbbr: string; dayNum: number; proximity: string; isUrgent: boolean };
+  | { kind: 'holiday';  date: string; label: string; name: string; monthAbbr: string; dayNum: number; proximity: string; isUrgent: boolean }
+  | { kind: 'birthday'; date: string; name: string; avatarUrl: string; monthAbbr: string; dayNum: number; proximity: string; isUrgent: boolean };
 
 @Component({
   selector: 'app-sidebar',
@@ -30,17 +31,17 @@ type UpcomingItem =
       <div class="bg-[#003bc4] px-4 py-3.5 flex items-center gap-2.5 flex-shrink-0">
         <img src="images/vacation.png" class="w-7 h-7 object-contain brightness-0 invert flex-shrink-0" alt="">
         <div>
-          <p class="text-sm font-bold text-white leading-tight">BESTMED Vacation</p>
-          <p class="text-[10px] text-blue-200">Register. Plan. Relax.</p>
+          <p class="text-sm font-bold text-white leading-tight">BESTMED TEAM</p>
+          <p class="text-[10px] text-blue-200">Improvise. Adapt. Overcome.</p>
         </div>
       </div>
 
       <!-- Scrollable middle -->
       <div class="flex-1 overflow-y-auto">
 
-        <!-- Nav tiles — 2×2 grid, each with its own color -->
+        <!-- Nav tiles — 2×2 for logged-in, 1×2 for guests -->
         <nav class="p-3 grid grid-cols-2 gap-2">
-          <a *ngFor="let t of navTiles"
+          <a *ngFor="let t of visibleNavTiles"
              [routerLink]="t.route"
              routerLinkActive
              #rla="routerLinkActive"
@@ -52,7 +53,7 @@ type UpcomingItem =
           </a>
         </nav>
 
-        <!-- Upcoming: vacations + VN holidays merged, sorted by date -->
+        <!-- Upcoming: vacations + VN holidays + birthdays merged, sorted by date -->
         <div *ngIf="currentUser && upcomingItems.length > 0"
              class="border-t border-gray-100 px-3 py-3">
           <p class="text-[10px] font-bold uppercase tracking-widest text-[#94a3b8] mb-2.5">Upcoming</p>
@@ -102,6 +103,30 @@ type UpcomingItem =
                 </div>
               </div>
 
+              <!-- Birthday card -->
+              <div *ngIf="item.kind === 'birthday'"
+                   class="flex items-center gap-2.5 rounded-lg p-2"
+                   [class.bg-amber-50]="!asBirthday(item).isUrgent"
+                   [class.bg-amber-100]="asBirthday(item).isUrgent">
+                <div class="w-9 h-9 rounded-lg flex flex-col items-center justify-center flex-shrink-0"
+                     [class.bg-amber-400]="!asBirthday(item).isUrgent"
+                     [class.bg-amber-500]="asBirthday(item).isUrgent">
+                  <span class="text-[8px] font-bold text-amber-100 uppercase leading-none tracking-wider">{{ item.monthAbbr }}</span>
+                  <span class="text-sm font-bold text-white leading-tight">{{ item.dayNum }}</span>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[11px] font-semibold text-[#1E293B] leading-tight flex items-center gap-1">
+                    <span class="text-sm leading-none select-none">{{ asBirthday(item).avatarUrl }}</span>
+                    <span class="truncate">{{ asBirthday(item).name }}</span>
+                  </p>
+                  <p class="text-[9px] font-semibold leading-tight mt-0.5"
+                     [class.text-amber-600]="asBirthday(item).isUrgent"
+                     [class.text-amber-400]="!asBirthday(item).isUrgent">
+                    &#127874; {{ asBirthday(item).proximity }}
+                  </p>
+                </div>
+              </div>
+
             </ng-container>
           </div>
 
@@ -112,9 +137,10 @@ type UpcomingItem =
 
       </div>
 
-      <!-- User chip -->
+      <!-- User chip — links to profile page -->
       <div *ngIf="currentUser" class="px-3 py-3 border-t border-gray-100 flex-shrink-0">
-        <div class="flex items-center gap-2">
+        <a routerLink="/profile"
+           class="flex items-center gap-2 rounded-xl hover:bg-gray-50 transition-colors p-1 -m-1 cursor-pointer">
           <div class="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 text-xl flex-shrink-0 select-none">
             {{ currentUser.avatarUrl }}
           </div>
@@ -122,16 +148,17 @@ type UpcomingItem =
             <p class="text-xs font-semibold text-[#1E293B] truncate" [title]="shortDisplayName">
               {{ shortDisplayName }}
             </p>
-            <p class="text-[10px] text-[#64748B] truncate">{{ currentUser.position }}</p>
+            <p class="text-[10px] text-[#64748B] truncate">View profile</p>
           </div>
-        </div>
+          <span class="text-[#94a3b8] text-xs flex-shrink-0">&#8250;</span>
+        </a>
       </div>
 
     </div>
   `,
 })
 export class SidebarComponent implements OnInit, OnDestroy {
-  readonly navTiles: NavTile[] = [
+  private readonly ALL_TILES: NavTile[] = [
     { route: '/home',     label: 'Home',     icon: 'home',     bg: '#EFF6FF', border: '#3B82F6', text: '#1D4ED8' },
     { route: '/holidays', label: 'Holidays', icon: 'holidays', bg: '#FFF1F2', border: '#F43F5E', text: '#BE123C' },
     { route: '/history',  label: 'History',  icon: 'history',  bg: '#FDF4FF', border: '#A855F7', text: '#7E22CE' },
@@ -144,8 +171,16 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
   private readonly MAX_ITEMS = 8;
+  private readonly BIRTHDAY_WINDOW_DAYS = 30;
 
   constructor(private dataService: MockDataService) {}
+
+  get visibleNavTiles(): NavTile[] {
+    if (!this.currentUser) {
+      return this.ALL_TILES.filter(t => t.route === '/home' || t.route === '/holidays');
+    }
+    return this.ALL_TILES;
+  }
 
   ngOnInit(): void {
     this.dataService.authenticatedUser$.pipe(takeUntil(this.destroy$)).subscribe(u => {
@@ -156,8 +191,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.dataService.vacations$,
       this.dataService.holidays$,
       this.dataService.authenticatedUser$,
-    ]).pipe(takeUntil(this.destroy$)).subscribe(([vacations, holidays, user]) => {
-      this.buildUpcomingItems(vacations, holidays, user);
+      this.dataService.members$,
+    ]).pipe(takeUntil(this.destroy$)).subscribe(([vacations, holidays, user, members]) => {
+      this.buildUpcomingItems(vacations, holidays, user, members);
     });
   }
 
@@ -166,7 +202,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  private buildUpcomingItems(vacations: Vacation[], holidays: Holiday[], user: Member | null): void {
+  private buildUpcomingItems(
+    vacations: Vacation[],
+    holidays: Holiday[],
+    user: Member | null,
+    members: Member[],
+  ): void {
     const todayStr = this.todayStr();
     const now = new Date();
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -176,8 +217,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
           .filter(v => v.username === user.username && v.date >= todayStr)
           .sort((a, b) => a.date.localeCompare(b.date))
           .map(v => {
-            const [y, m, d] = v.date.split('-').map(Number);
-            const dt = new Date(y, m - 1, d);
+            const [, m, d] = v.date.split('-').map(Number);
+            const dt = new Date(Number(v.date.split('-')[0]), m - 1, d);
             return {
               kind: 'vacation' as const,
               date: v.date,
@@ -208,13 +249,95 @@ export class SidebarComponent implements OnInit, OnDestroy {
         };
       });
 
-    const merged = [...vacItems, ...holItems].sort((a, b) => a.date.localeCompare(b.date));
+    const bdayItems: UpcomingItem[] = user
+      ? members
+          .map(m => {
+            const md = this.parseBirthdayMD(m.birthday);
+            if (!md) return null;
+            const next = this.nextBirthdayOccurrence(md, now, todayMidnight);
+            if (!next || next.daysUntil > this.BIRTHDAY_WINDOW_DAYS) return null;
+            return {
+              kind: 'birthday' as const,
+              date: next.dateStr,
+              name: m.name,
+              avatarUrl: m.avatarUrl,
+              monthAbbr: next.monthAbbr,
+              dayNum: md.day,
+              proximity: next.daysUntil === 0 ? 'Happy Birthday!' : this.proximity(next.daysUntil),
+              isUrgent: next.daysUntil <= 1,
+            } satisfies UpcomingItem;
+          })
+          .filter((x): x is Extract<UpcomingItem, { kind: 'birthday' }> => x !== null)
+      : [];
+
+    const merged = [...vacItems, ...holItems, ...bdayItems].sort((a, b) => a.date.localeCompare(b.date));
     this.moreItems = Math.max(0, merged.length - this.MAX_ITEMS);
     this.upcomingItems = merged.slice(0, this.MAX_ITEMS);
   }
 
-  asHoliday(item: UpcomingItem) { return item as Extract<UpcomingItem, { kind: 'holiday' }>; }
+  // ── Birthday helpers ──────────────────────────────────────────────────────
+
+  /**
+   * Parses a birthday string (any common format) to { month, day }.
+   * Treats slash-separated 3-part dates as DD/MM/YYYY (Vietnamese convention).
+   */
+  private parseBirthdayMD(birthday: string | undefined): { month: number; day: number } | null {
+    const s = (birthday ?? '').trim();
+    if (!s) return null;
+
+    // YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [, m, d] = s.split('-').map(Number);
+      return (m >= 1 && m <= 12 && d >= 1 && d <= 31) ? { month: m, day: d } : null;
+    }
+
+    // D/M/YYYY or DD/MM/YYYY or M/D/YYYY — treat as DD/MM/YYYY (VN convention)
+    const parts = s.split('/');
+    if (parts.length === 3) {
+      const [a, b, c] = parts.map(Number);
+      if (c > 1000) {
+        // c = year; a > 12 means definitely DD/MM, else ambiguous → assume DD/MM
+        const day = a, month = b;
+        return (month >= 1 && month <= 12 && day >= 1 && day <= 31) ? { month, day } : null;
+      }
+    }
+
+    return null;
+  }
+
+  private nextBirthdayOccurrence(
+    md: { month: number; day: number },
+    now: Date,
+    todayMidnight: number,
+  ): { dateStr: string; monthAbbr: string; daysUntil: number } | null {
+    const tryYear = (y: number) => {
+      try {
+        const d = new Date(y, md.month - 1, md.day);
+        // Validate (e.g. Feb 29 on non-leap year shifts to Mar 1 — skip those)
+        if (d.getMonth() !== md.month - 1) return null;
+        return d;
+      } catch { return null; }
+    };
+
+    let target = tryYear(now.getFullYear());
+    if (!target || target.getTime() < todayMidnight) {
+      target = tryYear(now.getFullYear() + 1);
+    }
+    if (!target) return null;
+
+    const daysUntil = Math.round((target.getTime() - todayMidnight) / 86_400_000);
+    const dateStr = `${target.getFullYear()}-${String(md.month).padStart(2, '0')}-${String(md.day).padStart(2, '0')}`;
+    const monthAbbr = target.toLocaleDateString('en-US', { month: 'short' });
+    return { dateStr, monthAbbr, daysUntil };
+  }
+
+  // ── Cast helpers (template can't narrow union types) ──────────────────────
+
+  asHoliday(item: UpcomingItem)  { return item as Extract<UpcomingItem, { kind: 'holiday' }>; }
   asVacation(item: UpcomingItem) { return item as Extract<UpcomingItem, { kind: 'vacation' }>; }
+  asBirthday(item: UpcomingItem) { return item as Extract<UpcomingItem, { kind: 'birthday' }>; }
+
+  // ── Vacation card helpers ─────────────────────────────────────────────────
 
   vacTypeChip(type: VacationType): string {
     if (type === 'Compensation') return '#0E7490';
@@ -240,10 +363,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
     return 'Vacation Day';
   }
 
+  // ── Utilities ─────────────────────────────────────────────────────────────
+
   private proximity(days: number): string {
     if (days === 0) return 'Today!';
     if (days === 1) return 'Tomorrow';
-    if (days < 7) return `In ${days} days`;
+    if (days < 7)  return `In ${days} days`;
     if (days < 14) return 'Next week';
     if (days < 30) return `In ${Math.round(days / 7)} weeks`;
     if (days < 60) return 'Next month';

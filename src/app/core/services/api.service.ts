@@ -13,7 +13,7 @@ interface SheetsResponse {
 
 interface AppsScriptResponse {
   success: boolean;
-  data?: { month: string; username: string; date: string }[];
+  data?: unknown[];
   error?: string;
 }
 
@@ -23,6 +23,24 @@ export interface VacationSubmitPayload {
   type: string;       // VacationType
   addDates: string[]; // YYYY-MM-DD
   removeDates: string[];
+}
+
+export interface ProfileUpdatePayload {
+  action: 'updateProfile';
+  id: string;
+  authUsername: string;
+  updates: {
+    dc?: string;
+    department?: string;
+    username?: string;
+    ip?: string;
+    publicIp?: string;
+    pcName?: string;
+    macAddress?: string;
+    email?: string;
+    mobile?: string;
+    birthday?: string;
+  };
 }
 
 const AVATAR_COLORS = [
@@ -55,10 +73,11 @@ export class ApiService {
 
   constructor(private http: HttpClient) {}
 
-  // ── Readers (Sheets API v4, read-only API key) ────────────────────────────
+  // ── Readers ───────────────────────────────────────────────────────────────
 
   fetchMembers(): Observable<Member[]> {
-    const url = `${this.base}/Team-Info!Members?key=${this.key}`;
+    // A:M — all 13 columns including private profile fields
+    const url = `${this.base}/Team-Info!A:M?key=${this.key}`;
     return this.http.get<SheetsResponse>(url).pipe(
       map(res => this.parseMembers(res.values ?? [])),
       catchError(err => {
@@ -90,17 +109,20 @@ export class ApiService {
     );
   }
 
-  // ── Writer (Apps Script Web App, handles authentication server-side) ──────
+  // ── Writers (Apps Script Web App) ─────────────────────────────────────────
 
-  /**
-   * POSTs vacation changes to the Apps Script web app.
-   * Uses Content-Type: text/plain to avoid a CORS preflight request —
-   * Apps Script redirects (302) and only the final response has CORS headers.
-   */
   submitVacationChanges(payload: VacationSubmitPayload): Observable<boolean> {
+    return this.postToScript(payload);
+  }
+
+  updateMemberProfile(payload: ProfileUpdatePayload): Observable<boolean> {
+    return this.postToScript(payload);
+  }
+
+  private postToScript(payload: object): Observable<boolean> {
     const url = environment.vacationApiUrl;
     if (!url) {
-      console.warn('[ApiService] VACATION_API_URL not configured — submission skipped.');
+      console.warn('[ApiService] VACATION_API_URL not configured — request skipped.');
       return of(false);
     }
     return this.http.post(url, JSON.stringify(payload), {
@@ -110,14 +132,14 @@ export class ApiService {
       map(text => {
         try {
           const res: AppsScriptResponse = JSON.parse(text);
-          if (!res.success) console.error('[ApiService] submitVacationChanges:', res.error);
+          if (!res.success) console.error('[ApiService] script error:', res.error);
           return res.success === true;
         } catch {
           return false;
         }
       }),
       catchError(err => {
-        console.error('[ApiService] submitVacationChanges failed:', err);
+        console.error('[ApiService] script request failed:', err);
         return of(false);
       })
     );
@@ -127,17 +149,27 @@ export class ApiService {
 
   private parseMembers(rows: string[][]): Member[] {
     if (!rows.length) return [];
-    // 6-column layout: A=ID | B=DC (hidden) | C=Team | D=Role | E=DisplayName | F=Username
+    // A=ID | B=DC | C=Team | D=Role | E=Name | F=Username |
+    // G=IP | H=Public IP | I=PC Name | J=MAC Address | K=BHS Email | L=Mobile | M=Birthday
     return rows.slice(1)
       .filter(r => r[5]?.trim())
       .map((row, i) => ({
-        username:    (row[5] ?? '').trim().toLowerCase(),  // F – auth only, not displayed
-        name:        (row[4] ?? '').trim(),                // E – display name
-        department:  (row[2] ?? '').trim(),                // C – Team
-        position:    (row[3] ?? '').trim(),                // D – Role
-        daysUsed:    0,
-        daysLeft:    0,
-        avatarUrl:   animalEmoji((row[5] ?? '').trim().toLowerCase()),
+        id:         (row[0]  ?? '').trim(),
+        username:   (row[5]  ?? '').trim().toLowerCase(),
+        name:       (row[4]  ?? '').trim(),
+        department: (row[2]  ?? '').trim(),
+        position:   (row[3]  ?? '').trim(),
+        dc:         (row[1]  ?? '').trim() || undefined,
+        ip:         (row[6]  ?? '').trim() || undefined,
+        publicIp:   (row[7]  ?? '').trim() || undefined,
+        pcName:     (row[8]  ?? '').trim() || undefined,
+        macAddress: (row[9]  ?? '').trim() || undefined,
+        email:      (row[10] ?? '').trim() || undefined,
+        mobile:     (row[11] ?? '').trim() || undefined,
+        birthday:   (row[12] ?? '').trim() || undefined,
+        daysUsed:   0,
+        daysLeft:   0,
+        avatarUrl:  animalEmoji((row[5] ?? '').trim().toLowerCase()),
         avatarColor: AVATAR_COLORS[i % AVATAR_COLORS.length],
       }));
   }
@@ -179,7 +211,6 @@ export class ApiService {
 
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
 
-    // Google Sheets serial number (days since Dec 30 1899)
     if (/^\d{5}$/.test(s)) {
       const epoch = new Date(1899, 11, 30);
       epoch.setDate(epoch.getDate() + parseInt(s, 10));
@@ -189,9 +220,9 @@ export class ApiService {
     const slash = s.split('/');
     if (slash.length === 3) {
       const [a, b, c] = slash.map(Number);
-      if (c > 1000) return this.toIso(new Date(c, a - 1, b));   // M/D/YYYY
-      if (a > 12)   return this.toIso(new Date(c, b - 1, a));   // DD/MM/YYYY
-      return this.toIso(new Date(c, a - 1, b));                  // ambiguous → M/D/YYYY
+      if (c > 1000) return this.toIso(new Date(c, a - 1, b));
+      if (a > 12)   return this.toIso(new Date(c, b - 1, a));
+      return this.toIso(new Date(c, a - 1, b));
     }
 
     const parsed = new Date(s);

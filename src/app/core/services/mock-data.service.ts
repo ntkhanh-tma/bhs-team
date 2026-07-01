@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of, combineLatest } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 import { Member, Holiday, Vacation, VacationType } from '../models/models';
-import { ApiService } from './api.service';
+import { ApiService, ProfileUpdatePayload } from './api.service';
 
 const LOCK_KEY    = 'vacation_submission_lock';
 const SESSION_KEY = 'bhs_vacation_user';
@@ -16,11 +16,11 @@ export class MockDataService {
   private authenticatedUser$$ = new BehaviorSubject<Member | null>(null);
   private loading$$           = new BehaviorSubject<boolean>(true);
 
-  readonly members$         = this.membersSubject.asObservable();
-  readonly holidays$        = this.holidaysSubject.asObservable();
-  readonly vacations$       = this.vacationsSubject.asObservable();
+  readonly members$           = this.membersSubject.asObservable();
+  readonly holidays$          = this.holidaysSubject.asObservable();
+  readonly vacations$         = this.vacationsSubject.asObservable();
   readonly authenticatedUser$ = this.authenticatedUser$$.asObservable();
-  readonly loading$         = this.loading$$.asObservable();
+  readonly loading$           = this.loading$$.asObservable();
 
   constructor(private api: ApiService) {
     this.loadRemoteData();
@@ -55,9 +55,8 @@ export class MockDataService {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  get currentUser(): Member | null {
-    return this.authenticatedUser$$.value;
-  }
+  get currentUser(): Member | null { return this.authenticatedUser$$.value; }
+  get loading(): boolean { return this.loading$$.value; }
 
   login(username: string): boolean {
     const member = this.membersSubject.value
@@ -77,23 +76,17 @@ export class MockDataService {
 
   // ── Display name helpers ──────────────────────────────────────────────────
 
-  /** "Name (Team | Role)" — shown in the top header welcome text. */
   getFullDisplayName(member: Member): string {
-    const parts = [member.department, member.position].filter(Boolean); // Team | Role
+    const parts = [member.department, member.position].filter(Boolean);
     return parts.length ? `${member.name} (${parts.join(' | ')})` : member.name;
   }
 
-  /** "Name (Team)" — shown in the sidebar chip and compact displays. */
   getShortDisplayName(member: Member): string {
     return member.department ? `${member.name} (${member.department})` : member.name;
   }
 
   // ── Vacation submission ───────────────────────────────────────────────────
 
-  /**
-   * Returns remaining lock time in milliseconds; 0 means no active lock.
-   * Lock is stored per-user in localStorage so it survives page reloads.
-   */
   getLockRemainingMs(username: string): number {
     try {
       const ts = parseInt(localStorage.getItem(`${LOCK_KEY}_${username}`) || '0', 10);
@@ -109,19 +102,10 @@ export class MockDataService {
     } catch {}
   }
 
-  /**
-   * Submits vacation changes (add/remove dates) for the authenticated user.
-   *
-   * Flow:
-   *   1. Enforce 5-minute cooldown.
-   *   2. POST to Apps Script — authoritative write.
-   *   3. On success: apply optimistic update to local state + set lock.
-   *   4. On failure: surface error without touching local state.
-   */
   submitVacation(
     addDates: string[],
     removeDates: string[],
-    month: string, // MM/YYYY
+    month: string,
     type: VacationType,
   ): Observable<{ success: boolean; error?: string }> {
     const user = this.authenticatedUser$$.value;
@@ -152,7 +136,6 @@ export class MockDataService {
       tap(success => {
         if (!success) return;
 
-        // Apply local state update
         const existing = this.vacationsSubject.value;
         const afterRemove = existing.filter(
           v => !(v.username === user.username && removeDates.includes(v.date)),
@@ -165,7 +148,6 @@ export class MockDataService {
         }));
         this.vacationsSubject.next([...afterRemove, ...newVacs]);
 
-        // Adjust member day counts by net delta
         const delta = addDates.length - removeDates.length;
         if (delta !== 0) {
           const updated = this.membersSubject.value.map(m => {
@@ -186,6 +168,56 @@ export class MockDataService {
       map(success => ({
         success,
         error: success ? undefined : 'Failed to save. Check your connection and try again.',
+      })),
+      catchError(() => of({ success: false, error: 'Network error. Please try again.' })),
+    );
+  }
+
+  // ── Profile update ────────────────────────────────────────────────────────
+
+  updateMemberProfile(
+    updates: ProfileUpdatePayload['updates'],
+  ): Observable<{ success: boolean; error?: string }> {
+    const user = this.authenticatedUser$$.value;
+    if (!user) return of({ success: false, error: 'Not logged in.' });
+
+    return this.api.updateMemberProfile({
+      action: 'updateProfile',
+      id: user.id,
+      authUsername: user.username,
+      updates,
+    }).pipe(
+      tap(success => {
+        if (!success) return;
+
+        const newUsername = updates.username ?? user.username;
+        const updated = this.membersSubject.value.map(m => {
+          if (m.username !== user.username) return m;
+          return {
+            ...m,
+            department: updates.department  ?? m.department,
+            username:   newUsername,
+            dc:         updates.dc          !== undefined ? (updates.dc || undefined)         : m.dc,
+            ip:         updates.ip          !== undefined ? (updates.ip || undefined)         : m.ip,
+            publicIp:   updates.publicIp    !== undefined ? (updates.publicIp || undefined)   : m.publicIp,
+            pcName:     updates.pcName      !== undefined ? (updates.pcName || undefined)     : m.pcName,
+            macAddress: updates.macAddress  !== undefined ? (updates.macAddress || undefined) : m.macAddress,
+            email:      updates.email       !== undefined ? (updates.email || undefined)      : m.email,
+            mobile:     updates.mobile      !== undefined ? (updates.mobile || undefined)     : m.mobile,
+            birthday:   updates.birthday    !== undefined ? (updates.birthday || undefined)   : m.birthday,
+          };
+        });
+
+        this.membersSubject.next(updated);
+        const refreshed = updated.find(m => m.username === newUsername);
+        if (refreshed) {
+          this.authenticatedUser$$.next(refreshed);
+          try { localStorage.setItem(SESSION_KEY, refreshed.username); } catch {}
+        }
+      }),
+      map(success => ({
+        success,
+        error: success ? undefined : 'Failed to update profile. Check your connection and try again.',
       })),
       catchError(() => of({ success: false, error: 'Network error. Please try again.' })),
     );
