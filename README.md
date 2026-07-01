@@ -9,9 +9,10 @@ A lightweight team vacation scheduling SPA built with **Angular 20** and hosted 
 | Page | What it does |
 |---|---|
 | **Home** | Monthly calendar showing your vacations, teammates' absences, and public holidays. Right sidebar shows team stats and today's absentees with emoji avatars. |
-| **History** | Gantt timeline of all vacation registrations, grouped by month. Filterable by month and member name. The logged-in user's bars are highlighted in purple. |
+| **History** | Gantt timeline of all vacation registrations, grouped by month. Each member's scattered vacation days render as separate bars (one per consecutive run). Filterable by month and member name. The logged-in user's bars are highlighted in purple. Also available in calendar view. |
 | **Members** | Team cards (color-coded per team) and a full member table with emoji avatars, team color pills, role, and vacation-used count. Default shows top 10; expand to see all. |
 | **Holidays** | List of public holidays loaded from the spreadsheet. |
+| **Profile** | Editable profile for the logged-in user. Read-only: ID, Name, Role. Editable: Team, DC, IP, Public IP, PC Name, MAC Address, BHS Email, Mobile, Birthday, Username. Saved back to the spreadsheet via Apps Script. |
 
 **Auth flow:** Enter your username in the Login dialog. If it matches a row in the Members sheet, you're logged in — no password. Session is persisted in `localStorage` so users stay logged in across page refreshes and return visits.
 
@@ -19,15 +20,17 @@ A lightweight team vacation scheduling SPA built with **Angular 20** and hosted 
 
 **Vacation types:** Each registration carries a type — `Vacation`, `Compensation`, or `Event` — stored as a fourth column in the Vacation-Plan sheet and displayed as a colored badge throughout the UI.
 
+**Responsive layout:** Full support for desktop (≥1024px), tablet, and mobile. The sidebar is an off-canvas overlay on small screens with a hamburger toggle; it becomes an inline column on desktop. Calendar and timeline grids use horizontal scroll when viewport is too narrow.
+
 ---
 
 ## Tech stack
 
 - **Angular 20** — standalone components, lazy-loaded routes, `@angular/build:application` (Vite / esbuild)
 - **Tailwind CSS v3** — utility classes; dynamic team/type colors bound via `[style.xxx]` Angular bindings (Tailwind's JIT purger can't see runtime-computed class names)
-- **RxJS BehaviorSubject** — lightweight in-memory state (no NgRx); single `MockDataService` owns all streams
+- **RxJS BehaviorSubject** — lightweight in-memory state (no NgRx); single `DataService` owns all streams
 - **Google Sheets API v4** — read-only data source for members, holidays, and vacation records
-- **Google Apps Script** — write proxy for vacation submissions (Sheets API requires OAuth for writes; Apps Script runs under the sheet owner's account)
+- **Google Apps Script** — write proxy for vacation submissions and profile updates (Sheets API requires OAuth for writes; Apps Script runs under the sheet owner's account)
 - **GitHub Actions + GitHub Pages** — CI/CD; pushes to `main` trigger a production build deployed to the `github-page` branch
 
 ---
@@ -36,15 +39,19 @@ A lightweight team vacation scheduling SPA built with **Angular 20** and hosted 
 
 All data lives in **one Google Spreadsheet** with three sheets:
 
-### `Team-Info` — named range `Members`
+### `Team-Info` — columns A through M
 
-Six columns, in order:
+Thirteen columns, in order:
 
-| A: ID | B: DC | C: Team | D: Role | E: Display Name | F: Username |
-|---|---|---|---|---|---|
-| 1 | BHS | Engineering | Senior Dev | John Smith | john |
+| A: ID | B: DC | C: Team | D: Role | E: Display Name | F: Username | G: IP | H: Public IP | I: PC Name | J: MAC Address | K: BHS Email | L: Mobile | M: Birthday |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | BHS | Engineering | Senior Dev | John Smith | john | 192.168.1.10 | 203.0.113.1 | BHS-PC-001 | AA:BB:CC:DD:EE:FF | john@bhs.com | +84 90 000 0000 | 15/06 |
 
 > **Column C is Team (department), column D is Role (position).** In code, `member.department` maps to column C and `member.position` maps to column D.
+
+Private fields (B, G–M) are only shown to the authenticated owner on the `/profile` page. They are parsed into `Member` objects but never rendered in any other view.
+
+**Birthday format:** `DD/MM` — day and month only, no year. The sidebar uses this to compute each member's next birthday and shows a 🎂 card in Upcoming when it's within 30 days.
 
 ### `Database` — named range `Holidays`
 
@@ -60,7 +67,7 @@ Date format is flexible — the parser handles `M/D/YYYY`, `DD/MM/YYYY`, ISO `YY
 |---|---|---|---|
 | 06/2026 | john | 2026-06-15 | Vacation |
 
-One row per person per day. Month is `MM/YYYY` for grouping. Date is `YYYY-MM-DD`. Type is one of `Vacation`, `Compensation`, `Event` (defaults to `Vacation` if missing or unrecognised). This sheet is managed exclusively by the Apps Script.
+One row per person per day. Month is `MM/YYYY` for grouping. Date is `YYYY-MM-DD`. Type is one of `Vacation`, `Compensation`, `Event` (defaults to `Vacation` if missing or unrecognised). Rows with `Type = Deleted` are filtered out at parse time (soft-delete). This sheet is managed exclusively by the Apps Script.
 
 ---
 
@@ -104,6 +111,8 @@ const teamColorOf = (name: string): TeamColor => {
 
 The palette has 10 entries (blue, green, orange, purple, rose, cyan, amber, sky, lime, red). A `FALLBACK_COLOR` (slate) covers members without a team. Colors are applied via `[style.background-color]` / `[style.border-color]` bindings rather than computed Tailwind class names, which would be stripped by the purger.
 
+The header shows two colored chips next to the logged-in user's name — one for their team (seed `0`) and one for their role (seed `5381`). Different seeds prevent same-string collisions (e.g. a team and role with the same text get different colors).
+
 ---
 
 ## Animal emoji avatars
@@ -119,37 +128,48 @@ const animalEmoji = (username: string): string => {
 };
 ```
 
-The pool has 30 animals. The emoji is stored in `member.avatarUrl` and rendered inside a `bg-gray-100` rounded circle wherever members appear (sidebar user chip, team card stacks, member table, History Gantt list, Home absentee row).
+The pool has 30 animals. The emoji is stored in `member.avatarUrl` and rendered inside a `bg-gray-100` rounded circle wherever members appear (sidebar user chip, team card stacks, member table, History Gantt list, Home absentee row, calendar strips).
 
 ---
 
 ## Sidebar
 
-The sidebar is a self-contained `SidebarComponent` that injects `MockDataService` directly (no `@Input()` props). It subscribes to three streams:
+The sidebar is a self-contained `SidebarComponent` that injects `DataService` directly (no `@Input()` props). It subscribes to four streams:
 
 - **authenticatedUser$** — user chip at the bottom (emoji + display name + role)
-- **vacations$ + authenticatedUser$** via `combineLatest` — **Your Schedule** section: up to 5 upcoming dates for the logged-in user, each row tinted by vacation type (purple = Vacation, cyan = Compensation, orange = Event)
-- **holidays$** — **VN Holidays** section: up to 5 upcoming VN public holidays filtered by `country.includes('viet') || country === 'vn'`, rendered as mini cards with a red date chip (month abbreviation + day number) and a proximity label ("Today!", "Tomorrow", "In X days", "Next week", "In ~X months")
+- **vacations$ + authenticatedUser$** via `combineLatest` — **Upcoming** section: the logged-in user's future vacation days, tinted by type (purple = Vacation, cyan = Compensation, orange = Event)
+- **holidays$** — **Upcoming** section: up to the next 8 combined items including VN public holidays filtered by `country.includes('viet') || country === 'vn'`
+- **members$** — **Upcoming** section: all members' birthdays within the next 30 days
 
-Holiday cards are urgency-tinted: `red-100` background + `red-600` chip for today/tomorrow; `red-50` + `red-400` for future dates.
+All three item types are merged and sorted by date. Up to 8 items are shown; a "+N more" count appears if there are more. Holiday cards are urgency-tinted (red-100/red-600 for today/tomorrow, red-50/red-400 for future). Birthday cards use amber tinting with a 🎂 emoji.
+
+Nav tiles filter based on auth state — guests see only Home and Holidays. History and Members require login (they also redirect to `/home` if a guest navigates to them directly).
 
 ---
 
-## Apps Script (vacation writes)
+## Apps Script (vacation writes and profile updates)
 
-`apps-script/Code.gs` handles two operations via `doPost`:
+`apps-script/Code.gs` routes two operations via `doPost`, distinguished by an `action` field in the JSON body:
 
-**Add days (`action: "add"`):**
+**Profile update (`action: "updateProfile"`):**
+```json
+{ "action": "updateProfile", "id": "1", "authUsername": "john", "updates": { "mobile": "+84 90 111 2222" } }
+```
+Finds the row where column A = `id` AND column F = `authUsername`. Updates any of: B (DC), C (Team), F (Username), G (IP), H (Public IP), I (PC Name), J (MAC Address), K (BHS Email), L (Mobile), M (Birthday). Uses `tryLock(10000)` to prevent concurrent writes.
+
+**Vacation changes (default, `action` absent or `"vacation"`):**
+
+Add days:
 ```
 month|username|date1,date2,...|type
 ```
 Validates `type` against `['Vacation', 'Compensation', 'Event']`, defaults to `'Vacation'`. Appends one row per date: `[month, username, date, type]`.
 
-**Remove days (`action: "remove"`):**
+Remove days:
 ```
 month|username|date1,date2,...
 ```
-Deletes rows matching `username + date` (month field is intentionally ignored to avoid format-mismatch bugs — `7/2026` vs `07/2026`).
+Sets the Type column to `Deleted` (soft-delete) for rows matching `username + date`.
 
 The request body is sent as `Content-Type: text/plain` to keep the request "simple" (no CORS preflight). Apps Script follows a 302 redirect before responding; a preflight would not survive that redirect.
 
@@ -245,29 +265,31 @@ If you use a custom domain or a user/org page at `/`, add a repository variable 
 ```
 src/
   app/
-    app.ts                                    # Root: header, sidebar, router outlet, auth state
-    app.routes.ts                             # Lazy-loaded routes: /, /history, /members, /holidays
+    app.ts                                    # Root: header, sidebar, router outlet, auth state, hamburger
+    app.routes.ts                             # Lazy-loaded routes: /, /history, /members, /holidays, /profile
     app.config.ts                             # provideRouter, provideHttpClient, provideAnimationsAsync
     core/
-      models/models.ts                        # Member, Holiday, Vacation (with VacationType), CalendarDay
+      models/models.ts                        # Member (13 fields), Holiday, Vacation, CalendarDay
       services/
         api.service.ts                        # Sheets API reads + Apps Script writes; animal emoji hash
-        mock-data.service.ts                  # BehaviorSubject state, localStorage auth, submitVacation()
+        data.service.ts                       # BehaviorSubject state, localStorage auth, submitVacation(), updateMemberProfile()
     features/
       home/
-        home.component.ts                     # Calendar layout + stats sidebar + absentees
-        calendar.component.ts                 # Monthly grid; opens at earliest registerable month
+        home.component.ts                     # Calendar layout + stats panel + absentees
+        calendar.component.ts                 # Monthly grid; opens at earliest registerable month; expand/collapse overflow
       history/
-        history.component.ts                  # Gantt timeline; emoji avatars; color by user/team
+        history.component.ts                  # Gantt timeline (bars per consecutive run) + calendar view; export placeholder
       members/
         members.component.ts                  # Team cards (color-coded) + member table + vacation counts
       holidays/
         holidays.component.ts                 # Holiday list
+      profile/
+        profile.component.ts                  # Editable profile for logged-in user; saves via Apps Script updateProfile
     shared/
       components/
         login-dialog.component.ts             # Username login with loading state
         register-vacation-dialog.component.ts # Date picker with lock period + diff tracking
-        sidebar.component.ts                  # Nav + Your Schedule + VN Holidays + user chip
+        sidebar.component.ts                  # Nav + Upcoming (vacations, VN holidays, birthdays) + user chip
 
   environments/                               # .gitignored — generated by scripts/setup-env.js
 
@@ -275,7 +297,7 @@ scripts/
   setup-env.js                                # Reads .env.local → writes environment files
 
 apps-script/
-  Code.gs                                     # Apps Script: doPost add/remove, doGet for reads
+  Code.gs                                     # Apps Script: doPost action routing (vacation + updateProfile)
 ```
 
 ---
@@ -297,8 +319,14 @@ A `text/plain` body keeps the request "simple" (no CORS preflight), so the brows
 **Why hash-based team colors and emoji avatars?**  
 Both are derived deterministically from a string (team name or username) so they are stable across sessions and builds without needing any extra data column in the spreadsheet. Same input always produces the same output.
 
+**Why `lg:translate-x-0` as a static class for the sidebar?**  
+Tailwind places responsive variants after base utilities in the generated stylesheet. Because CSS specificity is equal, the later rule wins — so `lg:translate-x-0` always overrides the Angular-bound `-translate-x-full` on large screens without any JS involvement.
+
 **Why `outputPath.browser: ""`?**  
 `@angular/build:application` nests output under `docs/browser/` by default, breaking GitHub Pages routing. Setting `browser: ""` flattens everything into `docs/`.
+
+**Why private fields are UI-only access-controlled?**  
+The app uses a read-only Google Sheets API key (client-side). All 13 columns are technically accessible to anyone who knows the key. The privacy is enforced purely in the UI — private fields are never rendered outside `/profile`, which checks `authenticatedUser$`.
 
 ---
 
@@ -312,3 +340,5 @@ Both are derived deterministically from a string (team name or username) so they
 | **Rate limiting** | The 5-minute submission lock is `localStorage`-only. A user can bypass it by clearing storage or using a private tab. |
 | **Offline / caching** | No service worker. The app requires a live Google Sheets connection on load. |
 | **Write confirmation** | Local state is updated optimistically after submission. A hard page refresh shows the authoritative server state. |
+| **History export** | The Export button per month header is a placeholder — image generation is not yet implemented. |
+| **Private field security** | Column G–M data (IP, MAC, birthday, etc.) is readable by anyone with the API key. The UI restricts display to the owner, but this is not enforced server-side. |

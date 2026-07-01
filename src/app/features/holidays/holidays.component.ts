@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { MockDataService } from '../../core/services/mock-data.service';
+import { DataService } from '../../core/services/data.service';
 import { Holiday } from '../../core/models/models';
 
 interface EnrichedHoliday {
@@ -126,7 +126,7 @@ export class HolidaysComponent implements OnInit, OnDestroy {
 
   private readonly COUNTRY_ORDER = ['au', 'vn', 'other'];
 
-  constructor(private dataService: MockDataService) {}
+  constructor(private dataService: DataService) {}
 
   ngOnInit(): void {
     this.dataService.holidays$.pipe(takeUntil(this.destroy$)).subscribe(holidays => {
@@ -165,7 +165,7 @@ export class HolidaysComponent implements OnInit, OnDestroy {
         monthMap.set(monthKey, {
           year: hy,
           month: hm,
-          label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          label: d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }),
           countryGroups: [],
           totalCount: 0,
         });
@@ -178,9 +178,9 @@ export class HolidaysComponent implements OnInit, OnDestroy {
       const enriched: EnrichedHoliday = {
         date: h.date,
         name: h.name,
-        dayOfWeek:  hDate.toLocaleDateString('en-US', { weekday: 'long' }),
+        dayOfWeek:  hDate.toLocaleDateString('en-AU', { weekday: 'long' }),
         dayNum:     hd,
-        monthAbbr:  hDate.toLocaleDateString('en-US', { month: 'short' }),
+        monthAbbr:  hDate.toLocaleDateString('en-AU', { month: 'short' }),
         isToday:    h.date === todayStr,
         daysUntil:  Math.floor((hDate.getTime() - todayMidnight) / 86_400_000),
       };

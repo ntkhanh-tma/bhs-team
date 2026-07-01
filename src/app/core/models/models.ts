@@ -31,7 +31,6 @@ export interface Vacation {
   username: string;
   date: string; // YYYY-MM-DD
   type: VacationType;
-  note?: string;
 }
 
 export interface CalendarDay {

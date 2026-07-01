@@ -5,7 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Member } from '../../core/models/models';
-import { MockDataService } from '../../core/services/mock-data.service';
+import { DataService } from '../../core/services/data.service';
 import { ProfileUpdatePayload } from '../../core/services/api.service';
 
 interface ProfileForm {
@@ -76,7 +76,7 @@ interface ProfileForm {
 
             <div class="space-y-3">
 
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label class="block text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8] mb-1">Team</label>
                   <input [(ngModel)]="form.department"
@@ -91,7 +91,7 @@ interface ProfileForm {
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label class="block text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8] mb-1">IP Address</label>
                   <input [(ngModel)]="form.ip"
@@ -106,7 +106,7 @@ interface ProfileForm {
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label class="block text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8] mb-1">PC Name</label>
                   <input [(ngModel)]="form.pcName"
@@ -129,7 +129,7 @@ interface ProfileForm {
                        class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#003bc4]/20 focus:border-[#003bc4] transition-colors" />
               </div>
 
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label class="block text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8] mb-1">Mobile</label>
                   <input [(ngModel)]="form.mobile"
@@ -200,7 +200,7 @@ export class ProfileComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   constructor(
-    private dataService: MockDataService,
+    private dataService: DataService,
     private router: Router,
   ) {}
 

@@ -4,7 +4,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { Subject, combineLatest } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Holiday, Member, Vacation, VacationType } from '../../core/models/models';
-import { MockDataService } from '../../core/services/mock-data.service';
+import { DataService } from '../../core/services/data.service';
 
 interface NavTile {
   route: string;
@@ -16,8 +16,8 @@ interface NavTile {
 }
 
 type UpcomingItem =
-  | { kind: 'vacation'; date: string; label: string; type: VacationType; monthAbbr: string; dayNum: number }
-  | { kind: 'holiday';  date: string; label: string; name: string; monthAbbr: string; dayNum: number; proximity: string; isUrgent: boolean }
+  | { kind: 'vacation'; date: string; type: VacationType; monthAbbr: string; dayNum: number }
+  | { kind: 'holiday';  date: string; name: string; monthAbbr: string; dayNum: number; proximity: string; isUrgent: boolean }
   | { kind: 'birthday'; date: string; name: string; avatarUrl: string; monthAbbr: string; dayNum: number; proximity: string; isUrgent: boolean };
 
 @Component({
@@ -137,10 +137,9 @@ type UpcomingItem =
 
       </div>
 
-      <!-- User chip — links to profile page -->
+      <!-- User chip — static display; profile link is in the header settings icon -->
       <div *ngIf="currentUser" class="px-3 py-3 border-t border-gray-100 flex-shrink-0">
-        <a routerLink="/profile"
-           class="flex items-center gap-2 rounded-xl hover:bg-gray-50 transition-colors p-1 -m-1 cursor-pointer">
+        <div class="flex items-center gap-2">
           <div class="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 text-xl flex-shrink-0 select-none">
             {{ currentUser.avatarUrl }}
           </div>
@@ -148,10 +147,9 @@ type UpcomingItem =
             <p class="text-xs font-semibold text-[#1E293B] truncate" [title]="shortDisplayName">
               {{ shortDisplayName }}
             </p>
-            <p class="text-[10px] text-[#64748B] truncate">View profile</p>
+            <p class="text-[10px] text-[#64748B] truncate">{{ currentUser.position }}</p>
           </div>
-          <span class="text-[#94a3b8] text-xs flex-shrink-0">&#8250;</span>
-        </a>
+        </div>
       </div>
 
     </div>
@@ -173,7 +171,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private readonly MAX_ITEMS = 8;
   private readonly BIRTHDAY_WINDOW_DAYS = 30;
 
-  constructor(private dataService: MockDataService) {}
+  constructor(private dataService: DataService) {}
 
   get visibleNavTiles(): NavTile[] {
     if (!this.currentUser) {
@@ -222,9 +220,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
             return {
               kind: 'vacation' as const,
               date: v.date,
-              label: this.shortDate(v.date),
               type: v.type,
-              monthAbbr: dt.toLocaleDateString('en-US', { month: 'short' }),
+              monthAbbr: dt.toLocaleDateString('en-AU', { month: 'short' }),
               dayNum: d,
             };
           })
@@ -240,9 +237,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
         return {
           kind: 'holiday' as const,
           date: h.date,
-          label: this.shortDate(h.date),
           name: h.name,
-          monthAbbr: hDate.toLocaleDateString('en-US', { month: 'short' }),
+          monthAbbr: hDate.toLocaleDateString('en-AU', { month: 'short' }),
           dayNum: d,
           proximity: this.proximity(days),
           isUrgent: days <= 1,
@@ -291,13 +287,18 @@ export class SidebarComponent implements OnInit, OnDestroy {
       return (m >= 1 && m <= 12 && d >= 1 && d <= 31) ? { month: m, day: d } : null;
     }
 
-    // D/M/YYYY or DD/MM/YYYY or M/D/YYYY — treat as DD/MM/YYYY (VN convention)
     const parts = s.split('/');
+
+    // DD/MM — primary sheet format (no year stored)
+    if (parts.length === 2) {
+      const [day, month] = parts.map(Number);
+      return (month >= 1 && month <= 12 && day >= 1 && day <= 31) ? { month, day } : null;
+    }
+
+    // DD/MM/YYYY — treat as DD/MM/YYYY (VN convention)
     if (parts.length === 3) {
-      const [a, b, c] = parts.map(Number);
+      const [day, month, c] = parts.map(Number);
       if (c > 1000) {
-        // c = year; a > 12 means definitely DD/MM, else ambiguous → assume DD/MM
-        const day = a, month = b;
         return (month >= 1 && month <= 12 && day >= 1 && day <= 31) ? { month, day } : null;
       }
     }
@@ -327,7 +328,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
     const daysUntil = Math.round((target.getTime() - todayMidnight) / 86_400_000);
     const dateStr = `${target.getFullYear()}-${String(md.month).padStart(2, '0')}-${String(md.day).padStart(2, '0')}`;
-    const monthAbbr = target.toLocaleDateString('en-US', { month: 'short' });
+    const monthAbbr = target.toLocaleDateString('en-AU', { month: 'short' });
     return { dateStr, monthAbbr, daysUntil };
   }
 
@@ -383,11 +384,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private todayStr(): string {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }
-
-  private shortDate(dateStr: string): string {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
   get shortDisplayName(): string {

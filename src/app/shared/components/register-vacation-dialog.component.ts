@@ -2,7 +2,7 @@ import { Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { MockDataService } from '../../core/services/mock-data.service';
+import { DataService } from '../../core/services/data.service';
 import { Holiday, Vacation, VacationType } from '../../core/models/models';
 
 interface DialogDay {
@@ -194,7 +194,7 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
 
   get monthLabel(): string {
     return new Date(this.viewYear, this.viewMonth - 1, 1)
-      .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      .toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
   }
 
   get monthKey(): string {
@@ -217,7 +217,7 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
     return this.addDates.length > 0 || this.removeDates.length > 0;
   }
 
-  constructor(private dataService: MockDataService) {}
+  constructor(private dataService: DataService) {}
 
   ngOnInit(): void {
     const earliest = this.getEarliestAllowedMonth();
@@ -384,7 +384,7 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
 
   formatChipDate(dateStr: string): string {
     const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(y, m - 1, d).toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
   }
 
   // ── Lock period helpers ───────────────────────────────────────────────────
@@ -414,7 +414,7 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
 
   get earliestMonthLabel(): string {
     const e = this.getEarliestAllowedMonth();
-    return new Date(e.year, e.month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    return new Date(e.year, e.month - 1, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
   }
 
   prevMonth(): void {

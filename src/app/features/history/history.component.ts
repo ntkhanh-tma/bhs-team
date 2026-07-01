@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { MockDataService } from '../../core/services/mock-data.service';
+import { DataService } from '../../core/services/data.service';
 import { Member, Vacation } from '../../core/models/models';
 
 interface GanttBar {
@@ -87,7 +87,8 @@ interface MonthGroup {
         <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
 
           <!-- ── Timeline view ─────────────────────────────────────────────── -->
-          <div *ngIf="viewMode === 'timeline'" class="flex">
+          <div *ngIf="viewMode === 'timeline'" class="overflow-x-auto">
+          <div class="flex min-w-[540px]">
 
             <!-- Left: member info panel -->
             <div class="w-52 flex-shrink-0 border-r border-gray-100">
@@ -148,7 +149,8 @@ interface MonthGroup {
               </div>
             </div>
 
-          </div>
+          </div><!-- /min-w flex -->
+          </div><!-- /overflow-x-auto -->
 
           <!-- ── Calendar view ─────────────────────────────────────────────── -->
           <div *ngIf="viewMode === 'calendar'" class="p-4">
@@ -230,7 +232,7 @@ export class HistoryComponent implements OnInit, OnDestroy {
   activeBtn   = 'px-3 py-1.5 text-sm rounded-lg bg-[#003bc4] text-white font-medium';
   inactiveBtn = 'px-3 py-1.5 text-sm rounded-lg border border-gray-200 text-[#64748B] hover:bg-gray-50';
 
-  constructor(private dataService: MockDataService, private router: Router) {}
+  constructor(private dataService: DataService, private router: Router) {}
 
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
 
@@ -363,7 +365,7 @@ export class HistoryComponent implements OnInit, OnDestroy {
 
   formatShortDate(dateStr: string): string {
     const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(y, m - 1, d).toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
   }
 
   // Placeholder — image export to be implemented once design is ready

@@ -1,7 +1,7 @@
 import { Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MockDataService } from '../../core/services/mock-data.service';
+import { DataService } from '../../core/services/data.service';
 
 @Component({
   selector: 'app-login-dialog',
@@ -64,7 +64,7 @@ export class LoginDialogComponent implements OnInit {
   error = '';
   loading = true;
 
-  constructor(private dataService: MockDataService) {}
+  constructor(private dataService: DataService) {}
 
   ngOnInit(): void {
     this.dataService.loading$.subscribe(l => this.loading = l);

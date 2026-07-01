@@ -9,7 +9,7 @@ const SESSION_KEY = 'bhs_vacation_user';
 const LOCK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 @Injectable({ providedIn: 'root' })
-export class MockDataService {
+export class DataService {
   private membersSubject      = new BehaviorSubject<Member[]>([]);
   private holidaysSubject     = new BehaviorSubject<Holiday[]>([]);
   private vacationsSubject    = new BehaviorSubject<Vacation[]>([]);
@@ -259,7 +259,7 @@ export class MockDataService {
         const d = new Date(data.year, data.month - 1, 1);
         const isCurrent = data.year === today.getFullYear() && data.month === today.getMonth() + 1;
         return {
-          label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + (isCurrent ? ' (Current)' : ''),
+          label: d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }) + (isCurrent ? ' (Current)' : ''),
           year: data.year,
           month: data.month,
           entries: Array.from(data.entries.entries())

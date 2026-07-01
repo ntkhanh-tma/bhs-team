@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { MockDataService } from '../../core/services/mock-data.service';
+import { DataService } from '../../core/services/data.service';
 import { Member } from '../../core/models/models';
 
 interface TeamColor {
@@ -98,7 +98,7 @@ const teamColorOf = (name: string): TeamColor => {
       <!-- All Members table -->
       <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <!-- Toolbar -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div class="flex items-center justify-between gap-2 flex-wrap px-4 py-3 border-b border-gray-100">
           <div class="flex items-center gap-2">
             <p class="text-sm font-semibold text-[#1E293B]">
               {{ selectedTeamName ? selectedTeamName : 'All Members' }}
@@ -115,7 +115,7 @@ const teamColorOf = (name: string): TeamColor => {
           <div class="relative">
             <input [(ngModel)]="memberSearch"
                    type="text" placeholder="Search members..."
-                   class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#003bc4] pl-7 w-44">
+                   class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#003bc4] pl-7 w-36 sm:w-44">
             <span class="absolute left-2.5 top-[7px] text-gray-400 text-xs leading-none">&#128269;</span>
           </div>
         </div>
@@ -213,7 +213,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     return this.showAll ? this.tableMembers : this.tableMembers.slice(0, this.tableLimit);
   }
 
-  constructor(private dataService: MockDataService, private router: Router) {}
+  constructor(private dataService: DataService, private router: Router) {}
 
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
 

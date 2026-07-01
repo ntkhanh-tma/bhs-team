@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CalendarComponent } from './calendar.component';
-import { MockDataService } from '../../core/services/mock-data.service';
+import { DataService } from '../../core/services/data.service';
 import { Member, Vacation } from '../../core/models/models';
 import { RegisterVacationDialogComponent } from '../../shared/components/register-vacation-dialog.component';
 import { combineLatest } from 'rxjs';
@@ -11,7 +11,7 @@ import { combineLatest } from 'rxjs';
   standalone: true,
   imports: [CommonModule, CalendarComponent, RegisterVacationDialogComponent],
   template: `
-    <div class="flex gap-6 h-full">
+    <div class="flex flex-col lg:flex-row gap-6">
       <!-- Main calendar area -->
       <div class="flex-1 min-w-0">
         <div class="mb-6">
@@ -31,8 +31,9 @@ import { combineLatest } from 'rxjs';
         <app-calendar></app-calendar>
       </div>
 
-      <!-- Right sidebar -->
-      <div class="w-56 flex-shrink-0 space-y-4">
+      <!-- Right stats panel: full-width on mobile, fixed width on desktop -->
+      <div class="w-full lg:w-56 flex-shrink-0">
+        <div class="flex lg:flex-col gap-4">
         <!-- This Month stats -->
         <div class="bg-white rounded-xl border border-gray-100 p-4">
           <p class="text-sm font-semibold text-[#1E293B] mb-3">This Month</p>
@@ -80,8 +81,9 @@ import { combineLatest } from 'rxjs';
           <p *ngIf="todayAbsentees.length === 0" class="text-xs text-[#64748B]">Everyone is in today!</p>
         </div>
 
-      </div>
-    </div>
+        </div><!-- /flex lg:flex-col -->
+      </div><!-- /stats panel -->
+    </div><!-- /main flex -->
 
     <!-- Register Vacation Dialog -->
     <app-register-vacation-dialog
@@ -99,7 +101,7 @@ export class HomeComponent implements OnInit {
   holidayCount = 0;
   todayAbsentees: { member: Member; vacation: Vacation }[] = [];
 
-  constructor(private dataService: MockDataService) {}
+  constructor(private dataService: DataService) {}
 
   ngOnInit(): void {
     this.dataService.authenticatedUser$.subscribe(u => this.currentUser = u);
