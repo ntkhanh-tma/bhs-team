@@ -152,15 +152,14 @@ const chipColor = (name: string, seed = 0): ChipColor => {
 
             <!-- Profile / settings -->
             <a routerLink="/profile"
-               title="My Profile"
-               class="flex items-center justify-center w-12 h-12 rounded-lg hover:bg-gray-100 transition-colors group flex-shrink-0">
-              <img src="images/settings.png"
-                   class="w-[27px] h-[27px] object-contain opacity-40 group-hover:opacity-70 transition-opacity" alt="Settings">
+               class="flex items-center gap-1.5 bg-[#003bc4] text-white px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-[#002da3] whitespace-nowrap flex-shrink-0 transition-colors">
+              <img src="images/settings.png" class="w-4 h-4 object-contain brightness-0 invert" alt="">
+              Profile
             </a>
 
             <!-- Logout -->
             <button (click)="logout()"
-                    class="text-sm border border-gray-200 text-[#64748B] hover:text-[#1E293B] px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors flex-shrink-0">
+                    class="flex items-center gap-1.5 text-sm border border-gray-200 text-[#64748B] hover:text-[#1E293B] px-3.5 py-2 rounded-lg hover:bg-gray-50 transition-colors flex-shrink-0 whitespace-nowrap">
               Logout
             </button>
           </div>
@@ -168,7 +167,7 @@ const chipColor = (name: string, seed = 0): ChipColor => {
           <!-- Guest state -->
           <ng-template #loginBtn>
             <button (click)="showLoginDialog = true"
-                    class="text-sm border border-[#003bc4] text-[#003bc4] px-4 py-1.5 rounded-lg hover:bg-[#e8eefb] font-medium flex-shrink-0">
+                    class="flex items-center gap-1.5 text-sm border border-[#003bc4] text-[#003bc4] px-3.5 py-2 rounded-lg hover:bg-[#e8eefb] font-medium flex-shrink-0 transition-colors whitespace-nowrap">
               Login
             </button>
           </ng-template>

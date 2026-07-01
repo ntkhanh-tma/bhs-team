@@ -134,21 +134,6 @@ type UpcomingItem =
 
       </div>
 
-      <!-- User chip — static display; profile link is in the header settings icon -->
-      <div *ngIf="currentUser" class="px-3 py-3 border-t border-gray-100 flex-shrink-0">
-        <div class="flex items-center gap-2">
-          <div class="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 text-xl flex-shrink-0 select-none">
-            {{ currentUser.avatarUrl }}
-          </div>
-          <div class="min-w-0 flex-1">
-            <p class="text-xs font-semibold text-[#1E293B] truncate" [title]="shortDisplayName">
-              {{ shortDisplayName }}
-            </p>
-            <p class="text-[10px] text-[#64748B] truncate">{{ currentUser.position }}</p>
-          </div>
-        </div>
-      </div>
-
     </div>
   `,
 })
@@ -383,7 +368,4 @@ export class SidebarComponent implements OnInit, OnDestroy {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
-  get shortDisplayName(): string {
-    return this.currentUser ? this.dataService.getShortDisplayName(this.currentUser) : '';
-  }
 }

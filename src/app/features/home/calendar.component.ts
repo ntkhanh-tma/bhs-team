@@ -64,7 +64,7 @@ import { combineLatest } from 'rxjs';
                      class="flex items-center gap-1 rounded px-1 py-px w-full overflow-hidden"
                      [style.background-color]="ov.member.avatarColor ?? '#94a3b8'">
                   <span class="text-[10px] leading-none flex-shrink-0 select-none">{{ ov.member.avatarUrl }}</span>
-                  <span class="text-[9px] font-semibold text-white truncate leading-tight">
+                  <span class="text-[11px] font-semibold text-white truncate leading-tight">
                     {{ ov.member.name }}
                   </span>
                 </div>

@@ -133,7 +133,9 @@ const teamColorOf = (name: string): TeamColor => {
             </thead>
             <tbody>
               <tr *ngFor="let m of displayedMembers"
-                  class="border-b border-gray-50 hover:bg-gray-50/50 last:border-0 transition-colors">
+                  class="border-b border-gray-50 hover:bg-blue-50/30 last:border-0 transition-colors cursor-default"
+                  (mouseenter)="onRowEnter($event, m)"
+                  (mouseleave)="onRowLeave()">
                 <td class="px-4 py-2.5">
                   <div class="flex items-center gap-2.5">
                     <div class="w-7 h-7 rounded-full flex items-center justify-center bg-gray-100 text-lg flex-shrink-0 select-none">
@@ -160,6 +162,47 @@ const teamColorOf = (name: string): TeamColor => {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Member hover card — fixed so it escapes overflow containers -->
+        <div *ngIf="tooltipMember"
+             class="fixed z-[200] pointer-events-none w-56 transition-opacity duration-100"
+             [style.top.px]="tooltipTop"
+             [style.left.px]="tooltipLeft">
+          <div class="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+            <!-- Header -->
+            <div class="px-4 py-3 flex items-center gap-3"
+                 style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%)">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-2xl select-none flex-shrink-0"
+                   [style.background-color]="(tooltipMember.avatarColor ?? '#94a3b8') + '33'">
+                {{ tooltipMember.avatarUrl }}
+              </div>
+              <p class="text-sm font-bold text-white leading-tight">{{ tooltipMember.name }}</p>
+            </div>
+            <!-- Info rows -->
+            <div class="px-4 py-3 space-y-2">
+              <div class="flex items-center gap-2.5">
+                <span class="text-[11px] w-3.5 text-center flex-shrink-0">&#128101;</span>
+                <span class="inline-flex text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                      [style.background-color]="getTeamColor(tooltipMember.department).bg"
+                      [style.color]="getTeamColor(tooltipMember.department).text">
+                  {{ tooltipMember.department || '—' }}
+                </span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <span class="text-[11px] w-3.5 text-center flex-shrink-0">&#127991;</span>
+                <span class="text-xs text-[#475569]">{{ tooltipMember.position || '—' }}</span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <span class="text-[11px] w-3.5 text-center flex-shrink-0">&#128187;</span>
+                <span class="text-xs font-mono text-[#475569]">{{ tooltipMember.ip || '—' }}</span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <span class="text-[11px] w-3.5 text-center flex-shrink-0">&#128241;</span>
+                <span class="text-xs text-[#475569]">{{ tooltipMember.mobile || '—' }}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Empty state -->
@@ -192,6 +235,10 @@ export class MembersComponent implements OnInit, OnDestroy {
   memberSearch = '';
   showAll = false;
   readonly tableLimit = 10;
+
+  tooltipMember: Member | null = null;
+  tooltipTop = 0;
+  tooltipLeft = 0;
 
   get tableMembers(): Member[] {
     let members = this.allMembers;
@@ -259,6 +306,17 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   getVacationCount(username: string): number {
     return this.vacationCounts.get(username) ?? 0;
+  }
+
+  onRowEnter(event: MouseEvent, member: Member): void {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.tooltipMember = member;
+    this.tooltipTop = rect.bottom + 4;
+    this.tooltipLeft = Math.min(rect.left, window.innerWidth - 232);
+  }
+
+  onRowLeave(): void {
+    this.tooltipMember = null;
   }
 
   teamCardClass(teamName: string): string {
