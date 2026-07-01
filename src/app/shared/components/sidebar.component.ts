@@ -6,6 +6,15 @@ import { takeUntil } from 'rxjs/operators';
 import { Holiday, Member, Vacation, VacationType } from '../../core/models/models';
 import { MockDataService } from '../../core/services/mock-data.service';
 
+interface NavTile {
+  route: string;
+  label: string;
+  icon: string;
+  bg: string;
+  border: string;
+  text: string;
+}
+
 type UpcomingItem =
   | { kind: 'vacation'; date: string; label: string; type: VacationType; monthAbbr: string; dayNum: number }
   | { kind: 'holiday'; date: string; label: string; name: string; monthAbbr: string; dayNum: number; proximity: string; isUrgent: boolean };
@@ -29,23 +38,17 @@ type UpcomingItem =
       <!-- Scrollable middle -->
       <div class="flex-1 overflow-y-auto">
 
-        <!-- Nav links -->
-        <nav class="p-3 space-y-1">
-          <a routerLink="/home" routerLinkActive="bg-[#e8eefb] text-[#003bc4] font-semibold"
-             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#64748B] hover:bg-gray-50 transition-colors">
-            <img src="images/home.png" class="w-5 h-5 object-contain flex-shrink-0" alt=""> Home
-          </a>
-          <a routerLink="/holidays" routerLinkActive="bg-[#e8eefb] text-[#003bc4] font-semibold"
-             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#64748B] hover:bg-gray-50 transition-colors">
-            <img src="images/holidays.png" class="w-5 h-5 object-contain flex-shrink-0" alt=""> Holidays
-          </a>
-          <a routerLink="/history" routerLinkActive="bg-[#e8eefb] text-[#003bc4] font-semibold"
-             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#64748B] hover:bg-gray-50 transition-colors">
-            <img src="images/history.png" class="w-5 h-5 object-contain flex-shrink-0" alt=""> History
-          </a>
-          <a routerLink="/members" routerLinkActive="bg-[#e8eefb] text-[#003bc4] font-semibold"
-             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#64748B] hover:bg-gray-50 transition-colors">
-            <img src="images/members.png" class="w-5 h-5 object-contain flex-shrink-0" alt=""> Members
+        <!-- Nav tiles — 2×2 grid, each with its own color -->
+        <nav class="p-3 grid grid-cols-2 gap-2">
+          <a *ngFor="let t of navTiles"
+             [routerLink]="t.route"
+             routerLinkActive
+             #rla="routerLinkActive"
+             class="flex flex-col items-center justify-center py-3.5 rounded-xl transition-all cursor-pointer select-none"
+             [style.background-color]="t.bg"
+             [style.box-shadow]="rla.isActive ? '0 0 0 2.5px ' + t.border : 'none'">
+            <img [src]="'images/' + t.icon + '.png'" class="w-7 h-7 object-contain mb-1.5" alt="">
+            <span class="text-[11px] font-bold" [style.color]="t.text">{{ t.label }}</span>
           </a>
         </nav>
 
@@ -81,7 +84,7 @@ type UpcomingItem =
                 </div>
               </div>
 
-              <!-- Vacation card — same chip layout, type-colored -->
+              <!-- Vacation card -->
               <div *ngIf="item.kind === 'vacation'"
                    class="flex items-center gap-2.5 rounded-lg p-2"
                    [style.background-color]="vacTypeBgLight(asVacation(item).type)">
@@ -128,6 +131,13 @@ type UpcomingItem =
   `,
 })
 export class SidebarComponent implements OnInit, OnDestroy {
+  readonly navTiles: NavTile[] = [
+    { route: '/home',     label: 'Home',     icon: 'home',     bg: '#EFF6FF', border: '#3B82F6', text: '#1D4ED8' },
+    { route: '/holidays', label: 'Holidays', icon: 'holidays', bg: '#FFF1F2', border: '#F43F5E', text: '#BE123C' },
+    { route: '/history',  label: 'History',  icon: 'history',  bg: '#FDF4FF', border: '#A855F7', text: '#7E22CE' },
+    { route: '/members',  label: 'Members',  icon: 'members',  bg: '#F0FDF4', border: '#22C55E', text: '#15803D' },
+  ];
+
   currentUser: Member | null = null;
   upcomingItems: UpcomingItem[] = [];
   moreItems = 0;
@@ -203,7 +213,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.upcomingItems = merged.slice(0, this.MAX_ITEMS);
   }
 
-  // Template narrowing helpers
   asHoliday(item: UpcomingItem) { return item as Extract<UpcomingItem, { kind: 'holiday' }>; }
   asVacation(item: UpcomingItem) { return item as Extract<UpcomingItem, { kind: 'vacation' }>; }
 

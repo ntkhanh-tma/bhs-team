@@ -159,7 +159,7 @@ export class ApiService {
     if (!rows.length) return [];
     // Header: Month | Username | Date | Type
     return rows.slice(1)
-      .filter(r => r[1]?.trim() && r[2]?.trim())
+      .filter(r => r[1]?.trim() && r[2]?.trim() && (r[3] ?? '').trim().toLowerCase() !== 'deleted')
       .map(row => {
         const username = row[1].trim().toLowerCase();
         const date     = row[2].trim();

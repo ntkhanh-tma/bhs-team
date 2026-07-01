@@ -19,9 +19,9 @@
  */
 
 var VACATION_SHEET = 'Vacation-Plan';
-var VALID_TYPES = ['Vacation', 'Compensation', 'Event'];
+var VALID_TYPES    = ['Vacation', 'Compensation', 'Event'];
 
-// ── GET — return all vacation rows (used for diagnostics only; app reads via Sheets API) ──
+// ── GET — return all vacation rows (diagnostic / manual read) ────────────────
 function doGet() {
   try {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(VACATION_SHEET);
@@ -41,7 +41,7 @@ function doGet() {
 
     return respond({ success: true, data: data });
   } catch (err) {
-    return respond({ success: false, error: err.message });
+    return respond({ success: false, error: String(err.message || err) });
   }
 }
 
@@ -57,16 +57,21 @@ function doGet() {
 //   }
 //
 function doPost(e) {
-  // Serialize concurrent executions — prevents duplicate rows when the browser
-  // follows Apps Script's 302 redirect and re-POSTs the same payload.
+  // tryLock returns false (no throw) if lock cannot be acquired within the timeout.
+  // This serialises concurrent executions so two near-simultaneous requests
+  // cannot both read an empty sheet and both insert the same rows.
   var lock = LockService.getScriptLock();
-  try {
-    lock.waitForLock(15000);
-  } catch (lockErr) {
-    return respond({ success: false, error: 'Server busy — please try again.' });
+  var lockAcquired = lock.tryLock(10000);
+  if (!lockAcquired) {
+    return respond({ success: false, error: 'Server busy — please try again in a moment.' });
   }
 
   try {
+    // Guard: Apps Script passes null e.postData when there is no request body.
+    if (!e || !e.postData || !e.postData.contents) {
+      return respond({ success: false, error: 'Missing request body.' });
+    }
+
     var payload     = JSON.parse(e.postData.contents);
     var username    = String(payload.username    || '').trim().toLowerCase();
     var month       = String(payload.month       || '').trim();
@@ -77,25 +82,28 @@ function doPost(e) {
 
     if (!username) return respond({ success: false, error: '"username" is required.' });
     if (!month)    return respond({ success: false, error: '"month" is required.' });
+    if (addDates.length === 0 && removeDates.length === 0) {
+      return respond({ success: false, error: 'Nothing to add or remove.' });
+    }
 
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(VACATION_SHEET);
     if (!sheet) return respond({ success: false, error: 'Sheet "' + VACATION_SHEET + '" not found.' });
 
-    // ── Remove rows (match username + date; iterate bottom-to-top so indices stay valid) ──
+    // ── Soft-delete: set Type = "Deleted" instead of removing rows ───────────
+    // Rows are kept so history is preserved; the client filters them out at read time.
     if (removeDates.length > 0) {
       var allRows = sheet.getDataRange().getValues();
-      for (var i = allRows.length - 1; i >= 1; i--) {
+      for (var i = 1; i < allRows.length; i++) {
         var rowUser = String(allRows[i][1] || '').trim().toLowerCase();
         var rowDate = String(allRows[i][2] || '').trim();
         if (rowUser === username && removeDates.indexOf(rowDate) >= 0) {
-          sheet.deleteRow(i + 1); // sheet rows are 1-indexed
+          sheet.getRange(i + 1, 4).setValue('Deleted'); // column D = Type, rows are 1-indexed
         }
       }
     }
 
-    // ── Append new rows (skip duplicates) ───────────────────────────────────
+    // ── Append new rows (re-read after deletions; skip exact duplicates) ──────
     if (addDates.length > 0) {
-      // Re-read after deletions to build the current set of (username, date) pairs
       var currentRows = sheet.getDataRange().getValues().slice(1);
       var existingKeys = {};
       for (var k = 0; k < currentRows.length; k++) {
@@ -105,17 +113,18 @@ function doPost(e) {
       }
 
       for (var j = 0; j < addDates.length; j++) {
-        var key = username + '|' + addDates[j];
+        var key = username + '|' + String(addDates[j]).trim();
         if (!existingKeys[key]) {
-          sheet.appendRow([month, username, addDates[j], type]);
-          existingKeys[key] = true; // prevent re-adding within this loop
+          sheet.appendRow([month, username, String(addDates[j]).trim(), type]);
+          existingKeys[key] = true; // prevent re-adding within this same loop
         }
       }
     }
 
     return respond({ success: true });
+
   } catch (err) {
-    return respond({ success: false, error: err.message });
+    return respond({ success: false, error: String(err.message || err) });
   } finally {
     lock.releaseLock();
   }
