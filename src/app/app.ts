@@ -1,11 +1,19 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { filter } from 'rxjs/operators';
 import { SidebarComponent } from './shared/components/sidebar.component';
 import { LoginDialogComponent } from './shared/components/login-dialog.component';
 import { DataService } from './core/services/data.service';
 import { Member } from './core/models/models';
+
+interface DailyQuote {
+  _id: string;
+  content: string;
+  author: string;
+  tags: string[];
+}
 
 interface ChipColor { bg: string; text: string; }
 
@@ -78,8 +86,51 @@ const chipColor = (name: string, seed = 0): ChipColor => {
             </div>
           </button>
 
-          <!-- Spacer -->
-          <div class="flex-1"></div>
+          <!-- Daily quote — center of header, visible on lg+ -->
+          <div class="flex-1 min-w-0 hidden lg:flex items-center justify-center">
+
+            <!-- Skeleton while loading -->
+            <div *ngIf="quoteLoading" class="flex flex-col items-center gap-1.5">
+              <div class="h-2 w-48 rounded-full bg-gray-100 animate-pulse"></div>
+              <div class="h-1.5 w-28 rounded-full bg-gray-100 animate-pulse"></div>
+            </div>
+
+            <!-- Quote card -->
+            <div *ngIf="!quoteLoading && quote"
+                 class="relative max-w-sm text-center px-6 group"
+                 [title]="quote.content + ' — ' + quote.author">
+              <!-- Decorative opening mark -->
+              <span class="absolute top-0 left-1 text-4xl font-serif leading-none select-none"
+                    style="color:#003bc4;opacity:0.13;">&ldquo;</span>
+              <!-- Decorative closing mark -->
+              <span class="absolute bottom-0 right-1 text-4xl font-serif leading-none select-none"
+                    style="color:#003bc4;opacity:0.13;">&rdquo;</span>
+
+              <!-- Quote text -->
+              <p class="font-serif italic text-[11px] leading-snug text-[#475569] line-clamp-2">
+                {{ quote.content }}
+              </p>
+
+              <!-- Attribution row -->
+              <div class="flex items-center justify-center gap-1.5 mt-0.5">
+                <span class="text-[10px] font-semibold text-[#003bc4]">— {{ quote.author }}</span>
+                <span *ngIf="quote.tags.length > 0"
+                      class="text-[9px] bg-[#EFF6FF] text-[#1D4ED8] px-1.5 py-px rounded-full font-medium leading-tight">
+                  {{ quote.tags[0] }}
+                </span>
+              </div>
+
+              <!-- Hover-reveal refresh -->
+              <button (click)="fetchQuote()"
+                      title="New quote"
+                      class="absolute -right-4 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center
+                             rounded-full text-[#003bc4] text-sm opacity-0 group-hover:opacity-40
+                             hover:!opacity-100 hover:bg-blue-50 transition-all duration-150">
+                &#8635;
+              </button>
+            </div>
+
+          </div>
 
           <!-- Logged-in state -->
           <div *ngIf="currentUser; else loginBtn" class="flex items-center gap-2 sm:gap-3">
@@ -150,7 +201,10 @@ export class AppComponent implements OnInit {
   teamChip: ChipColor = { bg: '', text: '' };
   roleChip: ChipColor = { bg: '', text: '' };
 
-  constructor(private dataService: DataService, private router: Router) {}
+  quote: DailyQuote | null = null;
+  quoteLoading = true;
+
+  constructor(private dataService: DataService, private router: Router, private http: HttpClient) {}
 
   ngOnInit(): void {
     this.dataService.authenticatedUser$.subscribe(u => {
@@ -164,6 +218,17 @@ export class AppComponent implements OnInit {
     this.router.events.pipe(
       filter(e => e instanceof NavigationEnd)
     ).subscribe(() => this.sidebarOpen = false);
+
+    this.fetchQuote();
+  }
+
+  fetchQuote(): void {
+    this.quoteLoading = true;
+    this.quote = null;
+    this.http.get<DailyQuote>('https://api.quotable.io/random').subscribe({
+      next: q => { this.quote = q; this.quoteLoading = false; },
+      error: () => { this.quoteLoading = false; },
+    });
   }
 
   logout(): void {

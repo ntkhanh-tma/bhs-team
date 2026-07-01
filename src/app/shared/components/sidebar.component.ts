@@ -28,12 +28,9 @@ type UpcomingItem =
     <div class="w-52 flex-shrink-0 flex flex-col bg-white border-r border-gray-200 h-full shadow-sm">
 
       <!-- Brand header -->
-      <div class="bg-[#003bc4] px-4 py-3.5 flex items-center gap-2.5 flex-shrink-0">
-        <img src="images/vacation.png" class="w-7 h-7 object-contain brightness-0 invert flex-shrink-0" alt="">
-        <div>
-          <p class="text-sm font-bold text-white leading-tight">BESTMED TEAM</p>
-          <p class="text-[10px] text-blue-200">Improvise. Adapt. Overcome.</p>
-        </div>
+      <div class="bg-white border-b border-gray-100 px-4 py-2.5 flex items-center justify-center flex-shrink-0">
+        <img src="https://bestmed.au/wp-content/uploads/2024/12/bestmed_logo.png"
+             class="h-[42px] w-auto object-contain" alt="BESTMED">
       </div>
 
       <!-- Scrollable middle -->
