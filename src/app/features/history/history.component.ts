@@ -36,7 +36,7 @@ interface MonthGroup {
 
       <!-- Filters -->
       <div class="flex items-center gap-3 mb-6">
-        <select [(ngModel)]="filterMonth" (ngModelChange)="applyFilter()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#4F7DF3]">
+        <select [(ngModel)]="filterMonth" (ngModelChange)="applyFilter()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#003bc4]">
           <option value="">All Months</option>
           <option *ngFor="let m of availableMonths" [value]="m.key">{{ m.label }}</option>
         </select>
@@ -46,7 +46,7 @@ interface MonthGroup {
             (ngModelChange)="applyFilter()"
             type="text"
             placeholder="Search member..."
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4F7DF3] pl-8"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003bc4] pl-8"
           />
           <span class="absolute left-2.5 top-2.5 text-gray-400 text-sm">🔍</span>
         </div>
@@ -67,11 +67,8 @@ interface MonthGroup {
             <div class="w-80 flex-shrink-0 border-r border-gray-100">
               <div *ngFor="let entry of group.entries; let last = last"
                    [class]="'flex items-center gap-3 px-4 py-3' + (last ? '' : ' border-b border-gray-50')">
-                <div
-                  class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                  [style.background-color]="entry.member.avatarColor"
-                >
-                  {{ getInitials(entry.member.name) }}
+                <div class="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 text-xl flex-shrink-0 select-none">
+                  {{ entry.member.avatarUrl }}
                 </div>
                 <div class="min-w-0 flex-1">
                   <p class="text-sm font-medium text-[#1E293B] truncate">{{ entry.member.name }}</p>
@@ -115,7 +112,7 @@ interface MonthGroup {
       </div>
 
       <div *ngIf="filteredGroups.length === 0" class="text-center py-16 text-[#64748B]">
-        <p class="text-4xl mb-3">📋</p>
+        <img src="images/history.png" class="w-12 h-12 object-contain mb-3 mx-auto opacity-40" alt="">
         <p>No vacation history found.</p>
       </div>
     </div>
@@ -130,7 +127,7 @@ export class HistoryComponent implements OnInit {
   viewMode: 'calendar' | 'timeline' = 'timeline';
   currentUserUsername: string | null = null;
 
-  activeBtn = 'px-3 py-1.5 text-sm rounded-lg bg-[#4F7DF3] text-white font-medium';
+  activeBtn = 'px-3 py-1.5 text-sm rounded-lg bg-[#003bc4] text-white font-medium';
   inactiveBtn = 'px-3 py-1.5 text-sm rounded-lg border border-gray-200 text-[#64748B] hover:bg-gray-50';
 
   constructor(private dataService: MockDataService) {}
@@ -221,7 +218,4 @@ export class HistoryComponent implements OnInit {
     return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
-  getInitials(name: string): string {
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-  }
 }

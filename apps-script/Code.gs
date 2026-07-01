@@ -1,8 +1,7 @@
 /**
  * Vacation Planner — Google Apps Script Web App
  *
- * This acts as a write proxy for the "Vacation-Plan" sheet because the
- * Sheets API v4 with an API key is read-only.
+ * Write proxy for the "Vacation-Plan" sheet (Sheets API v4 with API key is read-only).
  *
  * HOW TO DEPLOY:
  *   1. Open the Google Spreadsheet that contains your vacation data.
@@ -15,90 +14,103 @@
  *        • GitHub secret  →  VACATION_API_URL
  *
  * Sheet structure for "Vacation-Plan":
- *   Row 1 (header): Month | Username | Date
- *   Row 2+:         MM/YYYY | username | YYYY-MM-DD
+ *   Row 1 (header): Month | Username | Date | Type
+ *   Row 2+:         MM/YYYY | username | YYYY-MM-DD | Vacation|Compensation|Event
  */
 
 var VACATION_SHEET = 'Vacation-Plan';
+var VALID_TYPES = ['Vacation', 'Compensation', 'Event'];
 
-// ── GET — return all vacation rows ──────────────────────────────────────────
+// ── GET — return all vacation rows (used for diagnostics only; app reads via Sheets API) ──
 function doGet() {
   try {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(VACATION_SHEET);
-    if (!sheet) return respond({ success: false, error: 'Sheet "Vacation-Plan" not found.' });
+    if (!sheet) return respond({ success: false, error: 'Sheet "' + VACATION_SHEET + '" not found.' });
 
     var rows = sheet.getDataRange().getValues();
-    var data = rows.slice(1) // skip header
-      .filter(function(r) { return r[0] && r[1] && r[2]; })
+    var data = rows.slice(1)
+      .filter(function(r) { return r[1] && r[2]; })
       .map(function(r) {
         return {
-          month:    String(r[0]).trim(),
-          username: String(r[1]).trim().toLowerCase(),
-          date:     String(r[2]).trim(),
+          month:    String(r[0] || '').trim(),
+          username: String(r[1] || '').trim().toLowerCase(),
+          date:     String(r[2] || '').trim(),
+          type:     String(r[3] || 'Vacation').trim(),
         };
       });
 
     return respond({ success: true, data: data });
-  } catch (e) {
-    return respond({ success: false, error: e.message });
+  } catch (err) {
+    return respond({ success: false, error: err.message });
   }
 }
 
-// ── POST — upsert/delete vacation rows ──────────────────────────────────────
+// ── POST — add / remove vacation rows ───────────────────────────────────────
 //
-// Payload (JSON stringified, sent as text/plain to avoid CORS preflight):
-//   { username: string, month: "MM/YYYY", addDates: string[], removeDates: string[] }
+// Payload (JSON stringified, sent as Content-Type: text/plain to avoid CORS preflight):
+//   {
+//     username:    string,          // lowercase username
+//     month:       "MM/YYYY",       // e.g. "08/2026"
+//     type:        string,          // "Vacation" | "Compensation" | "Event"
+//     addDates:    string[],        // YYYY-MM-DD dates to add
+//     removeDates: string[],        // YYYY-MM-DD dates to remove
+//   }
 //
 function doPost(e) {
   try {
-    var payload = JSON.parse(e.postData.contents);
-    var username   = (payload.username   || '').trim().toLowerCase();
-    var month      = (payload.month      || '').trim();
-    var addDates   = payload.addDates   || [];
-    var removeDates = payload.removeDates || [];
+    var payload     = JSON.parse(e.postData.contents);
+    var username    = String(payload.username    || '').trim().toLowerCase();
+    var month       = String(payload.month       || '').trim();
+    var rawType     = String(payload.type        || '').trim();
+    var type        = VALID_TYPES.indexOf(rawType) >= 0 ? rawType : 'Vacation';
+    var addDates    = Array.isArray(payload.addDates)    ? payload.addDates    : [];
+    var removeDates = Array.isArray(payload.removeDates) ? payload.removeDates : [];
 
-    if (!username || !month) {
-      return respond({ success: false, error: '"username" and "month" are required.' });
-    }
+    if (!username) return respond({ success: false, error: '"username" is required.' });
+    if (!month)    return respond({ success: false, error: '"month" is required.' });
 
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(VACATION_SHEET);
-    if (!sheet) return respond({ success: false, error: 'Sheet "Vacation-Plan" not found.' });
+    if (!sheet) return respond({ success: false, error: 'Sheet "' + VACATION_SHEET + '" not found.' });
 
-    // Delete matching rows (iterate bottom-to-top so row indices stay valid)
+    // ── Remove rows (match username + date; iterate bottom-to-top so indices stay valid) ──
     if (removeDates.length > 0) {
-      var all = sheet.getDataRange().getValues();
-      for (var i = all.length - 1; i >= 1; i--) {
-        var rowUser  = String(all[i][1]).trim().toLowerCase();
-        var rowMonth = String(all[i][0]).trim();
-        var rowDate  = String(all[i][2]).trim();
-        if (rowUser === username && rowMonth === month && removeDates.indexOf(rowDate) >= 0) {
+      var allRows = sheet.getDataRange().getValues();
+      for (var i = allRows.length - 1; i >= 1; i--) {
+        var rowUser = String(allRows[i][1] || '').trim().toLowerCase();
+        var rowDate = String(allRows[i][2] || '').trim();
+        if (rowUser === username && removeDates.indexOf(rowDate) >= 0) {
           sheet.deleteRow(i + 1); // sheet rows are 1-indexed
         }
       }
     }
 
-    // Append new rows (skip duplicates)
+    // ── Append new rows (skip duplicates) ───────────────────────────────────
     if (addDates.length > 0) {
-      // Re-read after deletions
-      var current = sheet.getDataRange().getValues().slice(1)
-        .filter(function(r) {
-          return String(r[1]).trim().toLowerCase() === username && String(r[0]).trim() === month;
-        })
-        .map(function(r) { return String(r[2]).trim(); });
+      // Re-read after deletions to build the current set of (username, date) pairs
+      var currentRows = sheet.getDataRange().getValues().slice(1);
+      var existingKeys = {};
+      for (var k = 0; k < currentRows.length; k++) {
+        var u = String(currentRows[k][1] || '').trim().toLowerCase();
+        var d = String(currentRows[k][2] || '').trim();
+        if (u && d) existingKeys[u + '|' + d] = true;
+      }
 
       for (var j = 0; j < addDates.length; j++) {
-        if (current.indexOf(addDates[j]) < 0) {
-          sheet.appendRow([month, username, addDates[j]]);
-          current.push(addDates[j]); // prevent re-adding within this loop
+        var key = username + '|' + addDates[j];
+        if (!existingKeys[key]) {
+          sheet.appendRow([month, username, addDates[j], type]);
+          existingKeys[key] = true; // prevent re-adding within this loop
         }
       }
     }
 
     return respond({ success: true });
-  } catch (e) {
-    return respond({ success: false, error: e.message });
+  } catch (err) {
+    return respond({ success: false, error: err.message });
   }
 }
+
+// ── Helper ───────────────────────────────────────────────────────────────────
 
 function respond(data) {
   return ContentService

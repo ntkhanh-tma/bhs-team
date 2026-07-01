@@ -6,7 +6,9 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#4F7DF3',
+        primary: '#003bc4',
+        'primary-hover': '#002da3',
+        'primary-light': '#e8eefb',
         accent: '#7CC9A7',
         holiday: '#F7C873',
         'your-days': '#B48CF2',

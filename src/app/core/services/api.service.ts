@@ -26,10 +26,25 @@ export interface VacationSubmitPayload {
 }
 
 const AVATAR_COLORS = [
-  '#4F7DF3', '#7CC9A7', '#F7C873', '#B48CF2',
+  '#003bc4', '#7CC9A7', '#F7C873', '#B48CF2',
   '#F97316', '#EC4899', '#06B6D4', '#84CC16',
   '#8B5CF6', '#EF4444', '#14B8A6', '#F59E0B',
 ];
+
+const ANIMAL_EMOJIS = [
+  '🐶', '🐱', '🐻', '🦊', '🐼', '🐨', '🐯', '🦁',
+  '🐸', '🐧', '🦉', '🦅', '🦋', '🐙', '🦄', '🦝',
+  '🦘', '🦦', '🦥', '🐿️', '🦔', '🐇', '🦜', '🦩',
+  '🐳', '🦭', '🐆', '🦏', '🦒', '🐘',
+];
+
+const animalEmoji = (username: string): string => {
+  let h = 0;
+  for (let i = 0; i < username.length; i++) {
+    h = (Math.imul(31, h) + username.charCodeAt(i)) | 0;
+  }
+  return ANIMAL_EMOJIS[Math.abs(h) % ANIMAL_EMOJIS.length];
+};
 
 const VALID_TYPES: VacationType[] = ['Vacation', 'Compensation', 'Event'];
 
@@ -112,16 +127,17 @@ export class ApiService {
 
   private parseMembers(rows: string[][]): Member[] {
     if (!rows.length) return [];
+    // 6-column layout: A=ID | B=DC (hidden) | C=Team | D=Role | E=DisplayName | F=Username
     return rows.slice(1)
-      .filter(r => r[0]?.trim())
+      .filter(r => r[5]?.trim())
       .map((row, i) => ({
-        username:    (row[0] ?? '').trim().toLowerCase(),
-        name:        (row[1] ?? '').trim(),
-        department:  (row[2] ?? '').trim(),
-        position:    (row[3] ?? '').trim(),
-        daysUsed:    parseInt(row[4] ?? '0', 10) || 0,
-        daysLeft:    parseInt(row[5] ?? '0', 10) || 0,
-        avatarUrl:   (row[6] ?? '').trim(),
+        username:    (row[5] ?? '').trim().toLowerCase(),  // F – auth only, not displayed
+        name:        (row[4] ?? '').trim(),                // E – display name
+        department:  (row[2] ?? '').trim(),                // C – Team
+        position:    (row[3] ?? '').trim(),                // D – Role
+        daysUsed:    0,
+        daysLeft:    0,
+        avatarUrl:   animalEmoji((row[5] ?? '').trim().toLowerCase()),
         avatarColor: AVATAR_COLORS[i % AVATAR_COLORS.length],
       }));
   }

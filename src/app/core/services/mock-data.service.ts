@@ -4,7 +4,8 @@ import { catchError, map, tap } from 'rxjs/operators';
 import { Member, Holiday, Vacation, VacationType } from '../models/models';
 import { ApiService } from './api.service';
 
-const LOCK_KEY = 'vacation_submission_lock';
+const LOCK_KEY    = 'vacation_submission_lock';
+const SESSION_KEY = 'bhs_vacation_user';
 const LOCK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 @Injectable({ providedIn: 'root' })
@@ -39,6 +40,14 @@ export class MockDataService {
         this.holidaysSubject.next(holidays);
         this.vacationsSubject.next(vacations);
         this.loading$$.next(false);
+        // Auto-login from saved session
+        try {
+          const saved = localStorage.getItem(SESSION_KEY);
+          if (saved) {
+            const member = members.find(m => m.username === saved);
+            if (member) this.authenticatedUser$$.next(member);
+          }
+        } catch {}
       },
       error: () => this.loading$$.next(false),
     });
@@ -55,6 +64,7 @@ export class MockDataService {
       .find(m => m.username === username.trim().toLowerCase());
     if (member) {
       this.authenticatedUser$$.next(member);
+      try { localStorage.setItem(SESSION_KEY, member.username); } catch {}
       return true;
     }
     return false;
@@ -62,17 +72,18 @@ export class MockDataService {
 
   logout(): void {
     this.authenticatedUser$$.next(null);
+    try { localStorage.removeItem(SESSION_KEY); } catch {}
   }
 
   // ── Display name helpers ──────────────────────────────────────────────────
 
-  /** "Name (Team | Role)" — used in the top header. */
+  /** "Name (Team | Role)" — shown in the top header welcome text. */
   getFullDisplayName(member: Member): string {
-    const parts = [member.department, member.position].filter(Boolean);
+    const parts = [member.department, member.position].filter(Boolean); // Team | Role
     return parts.length ? `${member.name} (${parts.join(' | ')})` : member.name;
   }
 
-  /** "Name (Team)" — used in sidebar / calendar / cards. */
+  /** "Name (Team)" — shown in the sidebar chip and compact displays. */
   getShortDisplayName(member: Member): string {
     return member.department ? `${member.name} (${member.department})` : member.name;
   }

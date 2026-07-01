@@ -22,7 +22,7 @@ import { combineLatest } from 'rxjs';
           <button
             *ngIf="currentUser"
             (click)="showRegisterDialog = true"
-            class="flex items-center gap-2 bg-[#4F7DF3] text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 whitespace-nowrap"
+            class="flex items-center gap-2 bg-[#003bc4] text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[#002da3] whitespace-nowrap"
           >
             + Register Vacation
           </button>
@@ -37,21 +37,21 @@ import { combineLatest } from 'rxjs';
           <p class="text-sm font-semibold text-[#1E293B] mb-3">This Month</p>
           <div class="space-y-3">
             <div class="flex items-center gap-3">
-              <span class="text-2xl">👥</span>
+              <img src="images/members.png" class="w-8 h-8 object-contain flex-shrink-0" alt="">
               <div>
                 <p class="text-xl font-bold text-[#1E293B]">{{ memberCount }}</p>
                 <p class="text-xs text-[#64748B]">Members</p>
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <span class="text-2xl">🏖️</span>
+              <img src="images/vacation.png" class="w-8 h-8 object-contain flex-shrink-0" alt="">
               <div>
                 <p class="text-xl font-bold text-[#1E293B]">{{ vacationCount }}</p>
                 <p class="text-xs text-[#64748B]">Vacations</p>
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <span class="text-2xl">📅</span>
+              <img src="images/calendar.png" class="w-8 h-8 object-contain flex-shrink-0" alt="">
               <div>
                 <p class="text-xl font-bold text-[#1E293B]">{{ holidayCount }}</p>
                 <p class="text-xs text-[#64748B]">Holidays</p>
@@ -67,11 +67,10 @@ import { combineLatest } from 'rxjs';
           <div class="flex flex-wrap gap-1">
             <div
               *ngFor="let a of todayAbsentees.slice(0, 3)"
-              class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
-              [style.background-color]="a.member.avatarColor"
+              class="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 text-xl select-none"
               [title]="a.member.name"
             >
-              {{ getInitials(a.member.name) }}
+              {{ a.member.avatarUrl }}
             </div>
             <div *ngIf="todayAbsentees.length > 3" class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs text-[#64748B] font-medium">
               +{{ todayAbsentees.length - 3 }}
@@ -80,12 +79,6 @@ import { combineLatest } from 'rxjs';
           <p *ngIf="todayAbsentees.length === 0" class="text-xs text-[#64748B]">Everyone is in today!</p>
         </div>
 
-        <!-- Your days left (when logged in) -->
-        <div *ngIf="currentUser" class="bg-white rounded-xl border border-gray-100 p-4">
-          <p class="text-sm font-semibold text-[#1E293B] mb-2">Your Days Left</p>
-          <p class="text-3xl font-bold text-[#B48CF2]">{{ currentUser.daysLeft }}</p>
-          <p class="text-xs text-[#64748B]">{{ currentUser.daysUsed }} used this year</p>
-        </div>
       </div>
     </div>
 
@@ -120,10 +113,6 @@ export class HomeComponent implements OnInit {
       this.holidayCount = holidays.filter(h => h.date.startsWith(prefix)).length;
       this.todayAbsentees = this.dataService.getTodayAbsentees();
     });
-  }
-
-  getInitials(name: string): string {
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   }
 
   onVacationRegistered(): void {

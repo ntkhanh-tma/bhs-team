@@ -99,7 +99,7 @@ interface MonthGroup {
                 Today
               </span>
               <span *ngIf="!h.isToday && h.daysUntil <= 7"
-                    class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-[#EEF2FF] text-[#4F7DF3] font-medium">
+                    class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-[#e8eefb] text-[#003bc4] font-medium">
                 {{ h.daysUntil === 1 ? 'Tomorrow' : 'In ' + h.daysUntil + ' days' }}
               </span>
             </div>
@@ -109,7 +109,7 @@ interface MonthGroup {
 
       <!-- Empty state -->
       <div *ngIf="filteredGroups.length === 0" class="text-center py-16 text-[#64748B]">
-        <p class="text-4xl mb-3">🗓️</p>
+        <img src="images/holidays.png" class="w-12 h-12 object-contain mb-3 mx-auto opacity-40" alt="">
         <p class="text-sm">No upcoming public holidays in the next 6 months.</p>
       </div>
     </div>
@@ -262,12 +262,12 @@ export class HolidaysComponent implements OnInit, OnDestroy {
   filterBtnClass(key: string): string {
     const base = 'px-3 py-1.5 text-sm rounded-lg font-medium transition-colors border';
     return key === this.activeCountryKey
-      ? `${base} bg-[#4F7DF3] text-white border-[#4F7DF3]`
+      ? `${base} bg-[#003bc4] text-white border-[#003bc4]`
       : `${base} border-gray-200 text-[#64748B] hover:bg-gray-50`;
   }
 
   getDateChipClass(countryKey: string, isToday: boolean): string {
-    if (isToday) return 'bg-[#4F7DF3] text-white';
+    if (isToday) return 'bg-[#003bc4] text-white';
     if (countryKey === 'vn') return 'bg-red-50 text-red-700';
     return 'bg-[#FEF9EE] text-[#92400E]';
   }

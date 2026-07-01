@@ -107,24 +107,25 @@ export class CalendarComponent implements OnInit {
 
   get subtitle(): string {
     const today = new Date();
-    const isCurrentMonth = this.viewYear === today.getFullYear() && this.viewMonth === today.getMonth() + 1;
-    if (isCurrentMonth && today.getDate() <= 20) return 'Current month – today is before the 20th';
-    if (isCurrentMonth) return 'Next month view – today is after the 20th';
-    return '';
+    const day = today.getDate();
+    const earliestMonth = today.getMonth() + 1 + (day >= 20 ? 2 : 1);
+    const label = day >= 20
+      ? `Registration opens for the month after next (past the 20th)`
+      : `Registration open — next month available before the 20th`;
+    const e = { year: today.getFullYear(), month: earliestMonth > 12 ? earliestMonth - 12 : earliestMonth };
+    const eLabel = new Date(e.year, e.month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    return `Earliest registerable: ${eLabel}`;
   }
 
   constructor(private dataService: MockDataService) {}
 
   ngOnInit(): void {
     const today = new Date();
-    if (today.getDate() > 20) {
-      const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-      this.viewYear = next.getFullYear();
-      this.viewMonth = next.getMonth() + 1;
-    } else {
-      this.viewYear = today.getFullYear();
-      this.viewMonth = today.getMonth() + 1;
-    }
+    // Default to the earliest registerable month so the calendar matches the register dialog
+    const offset = today.getDate() >= 20 ? 2 : 1;
+    const earliest = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    this.viewYear = earliest.getFullYear();
+    this.viewMonth = earliest.getMonth() + 1;
 
     combineLatest([
       this.dataService.vacations$,
@@ -185,13 +186,13 @@ export class CalendarComponent implements OnInit {
     if (!day.date) return `${base} invisible`;
     if (!day.isCurrentMonth) return `${base} bg-gray-50/50`;
     if (day.isWeekend) return `${base} bg-gray-50`;
-    if (day.isToday) return `${base} bg-blue-50/50 ring-2 ring-[#4F7DF3] ring-inset`;
+    if (day.isToday) return `${base} bg-blue-50/50 ring-2 ring-[#003bc4] ring-inset`;
     return `${base} bg-white hover:bg-gray-50/50`;
   }
 
   getDayNumberClass(day: CalendarDay): string {
     const base = 'text-sm font-medium mb-0.5 w-6 h-6 flex items-center justify-center rounded-full';
-    if (day.isToday) return `${base} bg-[#4F7DF3] text-white`;
+    if (day.isToday) return `${base} bg-[#003bc4] text-white`;
     if (!day.isCurrentMonth) return `${base} text-gray-300`;
     if (day.isWeekend) return `${base} text-gray-400`;
     return `${base} text-[#1E293B]`;

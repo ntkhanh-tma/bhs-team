@@ -56,10 +56,19 @@ interface TypeOption {
         <!-- Month navigation -->
         <div class="flex items-center justify-between mb-4">
           <button (click)="prevMonth()"
-                  class="p-1 rounded hover:bg-gray-100 text-[#64748B] text-xl leading-none">&#8249;</button>
+                  [disabled]="!canGoPrev"
+                  class="p-1 rounded text-xl leading-none"
+                  [class]="canGoPrev ? 'hover:bg-gray-100 text-[#64748B]' : 'text-gray-200 cursor-not-allowed'">&#8249;</button>
           <span class="font-semibold text-[#1E293B]">{{ monthLabel }}</span>
           <button (click)="nextMonth()"
                   class="p-1 rounded hover:bg-gray-100 text-[#64748B] text-xl leading-none">&#8250;</button>
+        </div>
+
+        <!-- Lock banner for closed months -->
+        <div *ngIf="isViewingLockedMonth"
+             class="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 text-center">
+          Registration closed for this month — earliest available is
+          <strong>{{ earliestMonthLabel }}</strong>.
         </div>
 
         <!-- Day-of-week headers -->
@@ -77,7 +86,7 @@ interface TypeOption {
               {{ day.date.getDate() }}
               <!-- blue dot = already registered in this month -->
               <span *ngIf="isOriginal(day.dateStr) && !day.isSelected"
-                    class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#4F7DF3]">
+                    class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#003bc4]">
               </span>
             </ng-container>
           </div>
@@ -87,7 +96,7 @@ interface TypeOption {
         <div class="mt-4">
           <div class="flex items-center justify-between mb-2">
             <p class="text-xs font-medium text-[#64748B]">Selected Dates</p>
-            <span *ngIf="hasChanges" class="text-xs font-medium text-[#4F7DF3]">
+            <span *ngIf="hasChanges" class="text-xs font-medium text-[#003bc4]">
               <span *ngIf="addDates.length">+{{ addDates.length }} added</span>
               <span *ngIf="addDates.length && removeDates.length">, </span>
               <span *ngIf="removeDates.length" class="text-red-500">-{{ removeDates.length }} removed</span>
@@ -98,7 +107,7 @@ interface TypeOption {
                   class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full"
                   [class]="isNewlyAdded(d)
                     ? 'bg-green-100 text-green-700'
-                    : 'bg-[#EEF2FF] text-[#4F7DF3]'">
+                    : 'bg-[#e8eefb] text-[#003bc4]'">
               {{ formatChipDate(d) }}
               <button (click)="removeDate(d)"
                       class="hover:opacity-70 leading-none">&times;</button>
@@ -128,9 +137,9 @@ interface TypeOption {
             Cancel
           </button>
           <button (click)="onSubmit()"
-                  [disabled]="!hasChanges || submitting || lockRemainingMs > 0"
-                  class="flex-1 bg-[#4F7DF3] text-white rounded-lg py-2.5 text-sm font-medium
-                         hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed
+                  [disabled]="!hasChanges || submitting || lockRemainingMs > 0 || isViewingLockedMonth"
+                  class="flex-1 bg-[#003bc4] text-white rounded-lg py-2.5 text-sm font-medium
+                         hover:bg-[#002da3] disabled:opacity-50 disabled:cursor-not-allowed
                          flex items-center justify-center gap-2">
             <ng-container *ngIf="!submitting">
               {{ hasChanges ? 'Save changes' : 'No changes' }}
@@ -161,7 +170,7 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
   selectedType: VacationType = 'Vacation';
 
   readonly typeOptions: TypeOption[] = [
-    { value: 'Vacation',      label: 'Vacation',      activeClass: 'bg-[#4F7DF3] text-white border-[#4F7DF3]' },
+    { value: 'Vacation',      label: 'Vacation',      activeClass: 'bg-[#003bc4] text-white border-[#003bc4]' },
     { value: 'Compensation',  label: 'Compensation',  activeClass: 'bg-[#06B6D4] text-white border-[#06B6D4]' },
     { value: 'Event',         label: 'Event',         activeClass: 'bg-[#F97316] text-white border-[#F97316]' },
   ];
@@ -211,9 +220,9 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
   constructor(private dataService: MockDataService) {}
 
   ngOnInit(): void {
-    const today = new Date();
-    this.viewYear = today.getFullYear();
-    this.viewMonth = today.getMonth() + 1;
+    const earliest = this.getEarliestAllowedMonth();
+    this.viewYear = earliest.year;
+    this.viewMonth = earliest.month;
 
     this.dataService.vacations$.pipe(takeUntil(this.destroy$)).subscribe(v => {
       this.allVacations = v;
@@ -329,18 +338,23 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
     if (day.isPast || day.isWeekend || day.isHoliday) {
       return `${base} text-gray-300 cursor-not-allowed`;
     }
+    if (this.isViewingLockedMonth) {
+      return day.isSelected
+        ? `${base} bg-[#e8eefb] text-[#003bc4] cursor-not-allowed`
+        : `${base} text-gray-300 cursor-not-allowed`;
+    }
     if (day.isSelected) {
       const isNew = this.isNewlyAdded(day.dateStr);
-      return `${base} cursor-pointer font-semibold ${isNew ? 'bg-green-500 text-white' : 'bg-[#4F7DF3] text-white'}`;
+      return `${base} cursor-pointer font-semibold ${isNew ? 'bg-green-500 text-white' : 'bg-[#003bc4] text-white'}`;
     }
     if (day.isToday) {
-      return `${base} cursor-pointer border-2 border-[#4F7DF3] text-[#4F7DF3] font-semibold hover:bg-[#EEF2FF]`;
+      return `${base} cursor-pointer border-2 border-[#003bc4] text-[#003bc4] font-semibold hover:bg-[#e8eefb]`;
     }
-    return `${base} cursor-pointer text-[#1E293B] hover:bg-[#EEF2FF]`;
+    return `${base} cursor-pointer text-[#1E293B] hover:bg-[#e8eefb]`;
   }
 
   toggleDay(day: DialogDay): void {
-    if (!day.date || day.isPast || day.isWeekend || day.isHoliday) return;
+    if (!day.date || day.isPast || day.isWeekend || day.isHoliday || this.isViewingLockedMonth) return;
     if (this.selectedDates.includes(day.dateStr)) {
       this.selectedDates = this.selectedDates.filter(d => d !== day.dateStr);
     } else {
@@ -369,7 +383,38 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
     return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  // ── Lock period helpers ───────────────────────────────────────────────────
+  //
+  // Rule: before the 20th of month M → earliest allowed = M+1
+  //       on/after the 20th of month M → earliest allowed = M+2
+
+  getEarliestAllowedMonth(): { year: number; month: number } {
+    const today = new Date();
+    let month = today.getMonth() + 1 + (today.getDate() >= 20 ? 2 : 1);
+    let year = today.getFullYear();
+    if (month > 12) { month -= 12; year++; }
+    return { year, month };
+  }
+
+  get isViewingLockedMonth(): boolean {
+    const e = this.getEarliestAllowedMonth();
+    return this.viewYear < e.year || (this.viewYear === e.year && this.viewMonth < e.month);
+  }
+
+  get canGoPrev(): boolean {
+    const e = this.getEarliestAllowedMonth();
+    const prevMonth = this.viewMonth === 1 ? 12 : this.viewMonth - 1;
+    const prevYear  = this.viewMonth === 1 ? this.viewYear - 1 : this.viewYear;
+    return prevYear > e.year || (prevYear === e.year && prevMonth >= e.month);
+  }
+
+  get earliestMonthLabel(): string {
+    const e = this.getEarliestAllowedMonth();
+    return new Date(e.year, e.month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+
   prevMonth(): void {
+    if (!this.canGoPrev) return;
     if (this.viewMonth === 1) { this.viewMonth = 12; this.viewYear--; }
     else this.viewMonth--;
     this.submitError = null;
@@ -386,7 +431,7 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
   // ── Submission ────────────────────────────────────────────────────────────
 
   onSubmit(): void {
-    if (!this.hasChanges || this.submitting || this.lockRemainingMs > 0) return;
+    if (!this.hasChanges || this.submitting || this.lockRemainingMs > 0 || this.isViewingLockedMonth) return;
     this.submitting = true;
     this.submitError = null;
 

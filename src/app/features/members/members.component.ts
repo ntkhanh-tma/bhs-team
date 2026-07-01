@@ -4,100 +4,173 @@ import { FormsModule } from '@angular/forms';
 import { MockDataService } from '../../core/services/mock-data.service';
 import { Member } from '../../core/models/models';
 
+interface TeamColor {
+  bg: string;
+  border: string;
+  text: string;
+}
+
+interface TeamGroup {
+  name: string;
+  members: Member[];
+  color: TeamColor;
+}
+
+const TEAM_COLORS: TeamColor[] = [
+  { bg: '#EFF6FF', border: '#3B82F6', text: '#1D4ED8' },  // blue
+  { bg: '#F0FDF4', border: '#22C55E', text: '#15803D' },  // green
+  { bg: '#FFF7ED', border: '#F97316', text: '#C2410C' },  // orange
+  { bg: '#FDF4FF', border: '#A855F7', text: '#7E22CE' },  // purple
+  { bg: '#FFF1F2', border: '#F43F5E', text: '#BE123C' },  // rose
+  { bg: '#ECFEFF', border: '#06B6D4', text: '#0E7490' },  // cyan
+  { bg: '#FFFBEB', border: '#F59E0B', text: '#B45309' },  // amber
+  { bg: '#F0F9FF', border: '#0EA5E9', text: '#0369A1' },  // sky
+  { bg: '#F7FEE7', border: '#84CC16', text: '#4D7C0F' },  // lime
+  { bg: '#FFF0F0', border: '#EF4444', text: '#B91C1C' },  // red
+];
+
+const FALLBACK_COLOR: TeamColor = { bg: '#F1F5F9', border: '#94A3B8', text: '#64748B' };
+
+const teamColorOf = (name: string): TeamColor => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
+  return TEAM_COLORS[Math.abs(h) % TEAM_COLORS.length];
+};
+
 @Component({
   selector: 'app-members',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
     <div>
+      <!-- Page header -->
       <div class="mb-6">
         <h1 class="text-2xl font-bold text-[#1E293B]">Members</h1>
-        <p class="text-[#64748B] text-sm mt-1">View all members and their information.</p>
+        <p class="text-[#64748B] text-sm mt-1">
+          {{ teamGroups.length }} team{{ teamGroups.length !== 1 ? 's' : '' }}
+          &nbsp;·&nbsp;
+          {{ allMembers.length }} member{{ allMembers.length !== 1 ? 's' : '' }} total
+        </p>
       </div>
 
-      <!-- Filters -->
-      <div class="flex gap-3 mb-6">
-        <div class="relative flex-1 max-w-xs">
-          <input
-            [(ngModel)]="searchQuery"
-            (ngModelChange)="applyFilter()"
-            type="text"
-            placeholder="Search members..."
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4F7DF3] pl-8"
-          />
-          <span class="absolute left-2.5 top-2.5 text-gray-400 text-sm">🔍</span>
-        </div>
-        <select [(ngModel)]="filterDept" (ngModelChange)="applyFilter()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#4F7DF3]">
-          <option value="">All Departments</option>
-          <option *ngFor="let d of departments" [value]="d">{{ d }}</option>
-        </select>
-      </div>
-
-      <!-- Top summary cards -->
+      <!-- Team cards grid -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
-        <div *ngFor="let m of featuredMembers" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-sm transition-shadow">
-          <div class="flex items-center gap-3 mb-3">
-            <div
-              class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
-              [style.background-color]="m.avatarColor"
-            >
-              {{ getInitials(m.name) }}
+        <div *ngFor="let team of teamGroups"
+             (click)="toggleTeam(team.name)"
+             [class]="teamCardClass(team.name)"
+             [style.border-color]="selectedTeamName === team.name ? team.color.border : null"
+             [style.background-color]="selectedTeamName === team.name ? team.color.bg : null">
+
+          <!-- Colored icon -->
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+               [style.background-color]="team.color.border">
+            <img src="images/members.png" class="w-5 h-5 object-contain brightness-0 invert" alt="">
+          </div>
+
+          <p class="text-sm font-semibold text-[#1E293B] truncate">{{ team.name }}</p>
+          <p class="text-xs text-[#64748B] mt-0.5">
+            {{ team.members.length }} member{{ team.members.length !== 1 ? 's' : '' }}
+          </p>
+
+          <!-- Avatar stack with team-color ring -->
+          <div class="flex items-center mt-3 -space-x-1">
+            <div *ngFor="let m of team.members.slice(0, 4)"
+                 class="w-6 h-6 rounded-full flex items-center justify-center bg-gray-100 text-sm ring-2 ring-white select-none"
+                 [title]="m.name">
+              {{ m.avatarUrl }}
             </div>
-            <div class="min-w-0">
-              <p class="text-sm font-semibold text-[#1E293B] truncate">{{ m.name }}</p>
-              <p class="text-xs text-[#64748B] truncate">{{ m.position }}</p>
-              <p class="text-xs text-[#64748B] truncate">{{ m.department }}</p>
+            <div *ngIf="team.members.length > 4"
+                 class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[9px] text-[#64748B] font-medium ring-2 ring-white">
+              +{{ team.members.length - 4 }}
             </div>
           </div>
-          <p class="text-sm font-bold" [style.color]="getDaysColor(m.daysLeft)">{{ m.daysLeft }} days left</p>
-        </div>
 
-        <!-- View all card -->
-        <div class="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-100" (click)="showAll = !showAll">
-          <span class="text-2xl text-gray-300">+</span>
-          <p class="text-xs text-[#64748B] text-center">View All Members</p>
-          <p class="text-xs font-semibold text-[#4F7DF3]">{{ allMembers.length }} members</p>
+          <p class="mt-3 text-xs font-medium"
+             [style.color]="selectedTeamName === team.name ? team.color.border : '#94a3b8'">
+            {{ selectedTeamName === team.name ? '× Clear filter' : 'Filter ↓' }}
+          </p>
         </div>
       </div>
 
-      <!-- Data table -->
+      <!-- All Members table -->
       <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <table class="w-full">
-          <thead>
-            <tr class="border-b border-gray-100 bg-gray-50/50">
-              <th class="text-left text-xs font-semibold text-[#64748B] px-4 py-3">Name</th>
-              <th class="text-left text-xs font-semibold text-[#64748B] px-4 py-3">Department</th>
-              <th class="text-left text-xs font-semibold text-[#64748B] px-4 py-3">Position</th>
-              <th class="text-right text-xs font-semibold text-[#64748B] px-4 py-3">Days Used</th>
-              <th class="text-right text-xs font-semibold text-[#64748B] px-4 py-3">Days Left</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let m of displayedMembers" class="border-b border-gray-50 hover:bg-gray-50/50 last:border-0">
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-2.5">
-                  <div
-                    class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                    [style.background-color]="m.avatarColor"
-                  >
-                    {{ getInitials(m.name) }}
-                  </div>
-                  <span class="text-sm font-medium text-[#1E293B]">{{ m.name }}</span>
-                </div>
-              </td>
-              <td class="px-4 py-3 text-sm text-[#64748B]">{{ m.department }}</td>
-              <td class="px-4 py-3 text-sm text-[#64748B]">{{ m.position }}</td>
-              <td class="px-4 py-3 text-sm text-right text-[#1E293B] font-medium">{{ m.daysUsed }}</td>
-              <td class="px-4 py-3 text-right">
-                <span class="text-sm font-semibold" [style.color]="getDaysColor(m.daysLeft)">{{ m.daysLeft }} days</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- Toolbar -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div class="flex items-center gap-2">
+            <p class="text-sm font-semibold text-[#1E293B]">
+              {{ selectedTeamName ? selectedTeamName : 'All Members' }}
+            </p>
+            <span class="text-xs text-[#64748B] bg-gray-100 px-2 py-0.5 rounded-full">
+              {{ tableMembers.length }}
+            </span>
+            <button *ngIf="selectedTeamName"
+                    (click)="selectedTeamName = null; showAll = false"
+                    class="text-xs text-[#003bc4] hover:underline ml-1">
+              × Clear
+            </button>
+          </div>
+          <div class="relative">
+            <input [(ngModel)]="memberSearch"
+                   type="text" placeholder="Search members..."
+                   class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#003bc4] pl-7 w-44">
+            <span class="absolute left-2.5 top-[7px] text-gray-400 text-xs leading-none">&#128269;</span>
+          </div>
+        </div>
 
-        <div *ngIf="!showAll && filteredMembers.length > tableLimit" class="px-4 py-3 border-t border-gray-100 text-center">
-          <button (click)="showAll = true" class="text-sm text-[#4F7DF3] font-medium hover:underline">
-            View all members &rarr;
+        <!-- Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-gray-100 bg-gray-50/50">
+                <th class="text-left text-xs font-semibold text-[#64748B] px-4 py-3">Name</th>
+                <th class="text-left text-xs font-semibold text-[#64748B] px-4 py-3">Team</th>
+                <th class="text-left text-xs font-semibold text-[#64748B] px-4 py-3">Role</th>
+                <th class="text-right text-xs font-semibold text-[#64748B] px-4 py-3">Vacation Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let m of displayedMembers"
+                  class="border-b border-gray-50 hover:bg-gray-50/50 last:border-0 transition-colors">
+                <td class="px-4 py-2.5">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-full flex items-center justify-center bg-gray-100 text-lg flex-shrink-0 select-none">
+                      {{ m.avatarUrl }}
+                    </div>
+                    <span class="text-sm font-medium text-[#1E293B]">{{ m.name }}</span>
+                  </div>
+                </td>
+                <td class="px-4 py-2.5">
+                  <span class="inline-flex text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                        [style.background-color]="getTeamColor(m.department).bg"
+                        [style.color]="getTeamColor(m.department).text">
+                    {{ m.department || '—' }}
+                  </span>
+                </td>
+                <td class="px-4 py-2.5 text-sm text-[#64748B]">{{ m.position }}</td>
+                <td class="px-4 py-2.5 text-right">
+                  <span *ngIf="getVacationCount(m.username) > 0"
+                        class="inline-flex items-center justify-center text-xs font-semibold bg-[#e8eefb] text-[#003bc4] px-2.5 py-0.5 rounded-full">
+                    {{ getVacationCount(m.username) }}
+                  </span>
+                  <span *ngIf="getVacationCount(m.username) === 0" class="text-xs text-[#94a3b8]">&#8212;</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty state -->
+        <div *ngIf="tableMembers.length === 0" class="text-center py-10 text-[#64748B]">
+          <img src="images/members.png" class="w-10 h-10 object-contain mb-2 mx-auto opacity-30" alt="">
+          <p class="text-sm">No members found.</p>
+        </div>
+
+        <!-- Show more -->
+        <div *ngIf="!showAll && tableMembers.length > tableLimit"
+             class="px-4 py-3 border-t border-gray-100 text-center">
+          <button (click)="showAll = true"
+                  class="text-sm text-[#003bc4] font-medium hover:underline">
+            View all {{ tableMembers.length }} members &#8594;
           </button>
         </div>
       </div>
@@ -106,16 +179,33 @@ import { Member } from '../../core/models/models';
 })
 export class MembersComponent implements OnInit {
   allMembers: Member[] = [];
-  filteredMembers: Member[] = [];
-  featuredMembers: Member[] = [];
-  departments: string[] = [];
-  searchQuery = '';
-  filterDept = '';
+  teamGroups: TeamGroup[] = [];
+  vacationCounts = new Map<string, number>();
+  private teamColorMap = new Map<string, TeamColor>();
+
+  selectedTeamName: string | null = null;
+  memberSearch = '';
   showAll = false;
-  tableLimit = 5;
+  readonly tableLimit = 10;
+
+  get tableMembers(): Member[] {
+    let members = this.allMembers;
+    if (this.selectedTeamName) {
+      members = members.filter(m => m.department === this.selectedTeamName);
+    }
+    const q = this.memberSearch.trim().toLowerCase();
+    if (q) {
+      members = members.filter(m =>
+        m.name.toLowerCase().includes(q) ||
+        m.department.toLowerCase().includes(q) ||
+        m.position.toLowerCase().includes(q)
+      );
+    }
+    return members.slice().sort((a, b) => a.name.localeCompare(b.name));
+  }
 
   get displayedMembers(): Member[] {
-    return this.showAll ? this.filteredMembers : this.filteredMembers.slice(0, this.tableLimit);
+    return this.showAll ? this.tableMembers : this.tableMembers.slice(0, this.tableLimit);
   }
 
   constructor(private dataService: MockDataService) {}
@@ -123,35 +213,47 @@ export class MembersComponent implements OnInit {
   ngOnInit(): void {
     this.dataService.members$.subscribe(members => {
       this.allMembers = members;
-      this.featuredMembers = members.slice(0, 6);
-      this.departments = [...new Set(members.map(m => m.department))].sort();
-      this.applyFilter();
+      this.buildTeams();
+    });
+    this.dataService.vacations$.subscribe(vacations => {
+      const counts = new Map<string, number>();
+      for (const v of vacations) {
+        counts.set(v.username, (counts.get(v.username) ?? 0) + 1);
+      }
+      this.vacationCounts = counts;
     });
   }
 
-  applyFilter(): void {
-    let result = this.allMembers;
-    if (this.filterDept) {
-      result = result.filter(m => m.department === this.filterDept);
+  private buildTeams(): void {
+    const teamMap = new Map<string, Member[]>();
+    for (const m of this.allMembers) {
+      const team = m.department.trim() || 'Unassigned';
+      if (!teamMap.has(team)) teamMap.set(team, []);
+      teamMap.get(team)!.push(m);
     }
-    if (this.searchQuery.trim()) {
-      const q = this.searchQuery.toLowerCase();
-      result = result.filter(m =>
-        m.name.toLowerCase().includes(q) ||
-        m.department.toLowerCase().includes(q) ||
-        m.position.toLowerCase().includes(q)
-      );
-    }
-    this.filteredMembers = result;
+    this.teamGroups = Array.from(teamMap.entries())
+      .map(([name, members]) => ({ name, members, color: teamColorOf(name) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    this.teamColorMap = new Map(this.teamGroups.map(t => [t.name, t.color]));
   }
 
-  getInitials(name: string): string {
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  toggleTeam(teamName: string): void {
+    this.selectedTeamName = this.selectedTeamName === teamName ? null : teamName;
+    this.showAll = false;
   }
 
-  getDaysColor(days: number): string {
-    if (days <= 3) return '#EF4444';
-    if (days <= 7) return '#F97316';
-    return '#7CC9A7';
+  getTeamColor(teamName: string): TeamColor {
+    return this.teamColorMap.get(teamName) ?? FALLBACK_COLOR;
+  }
+
+  getVacationCount(username: string): number {
+    return this.vacationCounts.get(username) ?? 0;
+  }
+
+  teamCardClass(teamName: string): string {
+    const base = 'rounded-xl p-4 cursor-pointer transition-all group';
+    return this.selectedTeamName === teamName
+      ? `${base} border-2`
+      : `${base} bg-white border border-gray-100 hover:shadow-md`;
   }
 }

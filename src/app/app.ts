@@ -14,13 +14,13 @@ import { Member } from './core/models/models';
     <!-- Loading overlay -->
     <div *ngIf="loading" class="fixed inset-0 bg-white flex items-center justify-center z-50">
       <div class="text-center">
-        <div class="text-4xl mb-3">🌴</div>
+        <img src="images/vacation.png" class="w-12 h-12 object-contain mb-3" alt="">
         <p class="text-[#64748B] text-sm">Loading team data…</p>
       </div>
     </div>
 
     <div class="flex h-screen bg-gray-50 overflow-hidden">
-      <app-sidebar [currentUser]="currentUser" [dataService]="dataService"></app-sidebar>
+      <app-sidebar></app-sidebar>
 
       <div class="flex-1 flex flex-col min-w-0">
         <!-- Header -->
@@ -36,7 +36,7 @@ import { Member } from './core/models/models';
           </div>
           <ng-template #loginBtn>
             <button (click)="showLoginDialog = true"
-              class="text-sm border border-[#4F7DF3] text-[#4F7DF3] px-4 py-1.5 rounded-lg hover:bg-[#EEF2FF] font-medium">
+              class="text-sm border border-[#003bc4] text-[#003bc4] px-4 py-1.5 rounded-lg hover:bg-[#e8eefb] font-medium">
               Login
             </button>
           </ng-template>
@@ -64,7 +64,7 @@ export class AppComponent implements OnInit {
     return this.currentUser ? this.dataService.getFullDisplayName(this.currentUser) : '';
   }
 
-  constructor(readonly dataService: MockDataService) {}
+  constructor(private dataService: MockDataService) {}
 
   ngOnInit(): void {
     this.dataService.authenticatedUser$.subscribe(u => this.currentUser = u);

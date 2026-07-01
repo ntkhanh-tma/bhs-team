@@ -34,7 +34,7 @@ import { MockDataService } from '../../core/services/mock-data.service';
               [(ngModel)]="username"
               type="text"
               placeholder="Enter username"
-              class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4F7DF3] focus:border-transparent"
+              class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#003bc4] focus:border-transparent"
               (keydown.enter)="onLogin()"
               autofocus
             />
@@ -47,7 +47,7 @@ import { MockDataService } from '../../core/services/mock-data.service';
               Cancel
             </button>
             <button (click)="onLogin()"
-              class="flex-1 bg-[#4F7DF3] text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-600">
+              class="flex-1 bg-[#003bc4] text-white rounded-lg py-2.5 text-sm font-medium hover:bg-[#002da3]">
               Login
             </button>
           </div>
