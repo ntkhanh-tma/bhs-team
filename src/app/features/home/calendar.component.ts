@@ -58,16 +58,20 @@ import { combineLatest } from 'rxjs';
               <!-- Your vacation badge -->
               <span *ngIf="day.yourVacation"
                     [class]="getYourVacationClass(day.yourVacation.type)"
+                    [title]="'You — ' + day.yourVacation.type"
                     class="text-[10px] rounded px-1 py-0.5 font-medium leading-tight">
-                {{ getYourVacationLabel(day.yourVacation.type) }}
+                You
               </span>
 
               <!-- Others vacations — named strips with expand/collapse -->
               <ng-container *ngIf="day.othersVacations.length > 0">
                 <div *ngFor="let ov of othersToShow(day)"
                      class="flex items-center gap-1 rounded px-1 py-px w-full overflow-hidden"
-                     [style.background-color]="ov.member.avatarColor ?? '#94a3b8'">
+                     [style.background-color]="ov.member.avatarColor ?? '#94a3b8'"
+                     [title]="ov.member.name + ' — ' + ov.vacation.type">
                   <span class="text-[11px] leading-none flex-shrink-0 select-none">{{ ov.member.avatarUrl }}</span>
+                  <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 ring-1 ring-white/80"
+                        [style.background-color]="getTypeDotColor(ov.vacation.type)"></span>
                   <span class="text-xs font-semibold text-white truncate leading-tight">
                     {{ ov.member.name }}
                   </span>
@@ -268,16 +272,18 @@ export class CalendarComponent implements OnInit {
     return 'bg-[#F7C873] text-[#92400E]';
   }
 
-  getYourVacationLabel(type: VacationType): string {
-    if (type === 'Compensation') return 'Comp';
-    if (type === 'Event')        return 'Event';
-    return 'You';
-  }
-
   getYourVacationClass(type: VacationType): string {
     if (type === 'Compensation') return 'bg-[#06B6D4] text-white';
     if (type === 'Event')        return 'bg-[#F97316] text-white';
     return 'bg-[#B48CF2] text-white';
+  }
+
+  /** Matches the legend swatches — used as a small dot on teammates' strips
+   *  so type stays visible even though the strip itself is colored per-person. */
+  getTypeDotColor(type: VacationType): string {
+    if (type === 'Compensation') return '#06B6D4';
+    if (type === 'Event')        return '#F97316';
+    return '#B48CF2';
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────
