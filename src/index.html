@@ -18,6 +18,7 @@
         (optimization.fonts.inline = true), so these entries are only needed for
         local development where build-time inlining doesn't run.
       • sheets.googleapis.com: required for the Google Sheets data API.
+      • img-src blob: required to preview the canvas-generated export report (object URLs).
       • frame-ancestors 'none': modern replacement for X-Frame-Options: DENY.
   -->
   <meta http-equiv="Content-Security-Policy"
@@ -26,7 +27,7 @@
                  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
                  font-src 'self' https://fonts.gstatic.com data:;
                  connect-src 'self' https://sheets.googleapis.com https://script.google.com https://script.googleusercontent.com https://api.api-ninjas.com https://dummyjson.com;
-                 img-src 'self' data: https:;
+                 img-src 'self' data: blob: https:;
                  frame-ancestors 'none';">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">

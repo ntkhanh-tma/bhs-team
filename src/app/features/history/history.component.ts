@@ -1,11 +1,11 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { DataService } from '../../core/services/data.service';
-import { Member, Vacation } from '../../core/models/models';
+import { Holiday, Member, Vacation, VacationType } from '../../core/models/models';
 
 interface GanttBar {
   offset: number; // % from left within the track
@@ -215,6 +215,44 @@ interface MonthGroup {
         <img src="images/history.png" class="w-12 h-12 object-contain mb-3 mx-auto opacity-40" alt="">
         <p>No vacation history found.</p>
       </div>
+
+      <!-- Export preview modal -->
+      <div *ngIf="previewImageUrl"
+           class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+           (click)="closePreview()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6" (click)="$event.stopPropagation()">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h2 class="text-xl font-bold text-[#1E293B]">Export Preview</h2>
+              <p class="text-[#64748B] text-sm mt-1">{{ previewFilename }}</p>
+            </div>
+            <button (click)="closePreview()"
+                    class="text-[#64748B] hover:text-[#1E293B] text-xl leading-none">&times;</button>
+          </div>
+
+          <div class="border border-gray-100 rounded-xl overflow-auto max-h-[65vh] bg-gray-50 p-3">
+            <img [src]="previewImageUrl" class="max-w-full h-auto mx-auto block" alt="Vacation report preview">
+          </div>
+
+          <p *ngIf="copyFeedback"
+             class="text-xs text-center mt-3"
+             [class.text-green-600]="copyFeedback.startsWith('Copied')"
+             [class.text-red-600]="!copyFeedback.startsWith('Copied')">
+            {{ copyFeedback }}
+          </p>
+
+          <div class="flex gap-3 mt-4">
+            <button (click)="copyPreviewImage()"
+                    class="flex-1 border border-gray-200 text-[#1E293B] rounded-lg py-2.5 text-sm font-medium hover:bg-gray-50">
+              &#128203; Copy Image
+            </button>
+            <button (click)="downloadPreview()"
+                    class="flex-1 bg-[#003bc4] text-white rounded-lg py-2.5 text-sm font-medium hover:bg-[#002da3]">
+              &#11015; Download
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   `,
 })
@@ -228,14 +266,41 @@ export class HistoryComponent implements OnInit, OnDestroy {
   searchQuery = '';
   viewMode: 'calendar' | 'timeline' = 'timeline';
   currentUserUsername: string | null = null;
+  private holidays: Holiday[] = [];
   private destroy$ = new Subject<void>();
+
+  // ── Export preview state ─────────────────────────────────────────────────
+  previewImageUrl: string | null = null;
+  previewFilename = '';
+  copyFeedback: string | null = null;
+  private previewBlob: Blob | null = null;
+
+  // ── Export report palette — soft pastel chips on a neutral card ──────────
+  private readonly EXPORT_CARD_BG    = '#FFFFFF';
+  private readonly EXPORT_PAGE_BG    = '#F1F5F9';
+  private readonly EXPORT_HEADER_BG  = '#0F172A';
+  private readonly EXPORT_HEADER_SUB = '#94A3B8';
+  private readonly EXPORT_ACCENT     = '#003bc4';
+  private readonly EXPORT_ROW_ALT_BG = '#F8FAFC';
+  private readonly EXPORT_WEEKEND_BG = '#EEF2F7';
+  private readonly EXPORT_DIVIDER    = '#E2E8F0';
+  private readonly EXPORT_TYPE_STYLE: Record<VacationType, { bg: string; fg: string; letter: string }> = {
+    Vacation:     { bg: '#DCFCE7', fg: '#16A34A', letter: 'V' },
+    Compensation: { bg: '#FFEDD5', fg: '#EA580C', letter: 'C' },
+    Event:        { bg: '#F3E8FF', fg: '#9333EA', letter: 'E' },
+  };
+  private readonly EXPORT_HOLIDAY_STYLE = { bg: '#DBEAFE', fg: '#2563EB', letter: 'P' };
 
   activeBtn   = 'px-3 py-1.5 text-sm rounded-lg bg-[#003bc4] text-white font-medium';
   inactiveBtn = 'px-3 py-1.5 text-sm rounded-lg border border-gray-200 text-[#64748B] hover:bg-gray-50';
 
-  constructor(private dataService: DataService, private router: Router) {}
+  constructor(private dataService: DataService, private router: Router, private ngZone: NgZone) {}
 
-  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+    if (this.previewImageUrl) URL.revokeObjectURL(this.previewImageUrl);
+  }
 
   ngOnInit(): void {
     this.dataService.authenticatedUser$.pipe(takeUntil(this.destroy$)).subscribe(u => {
@@ -244,6 +309,7 @@ export class HistoryComponent implements OnInit, OnDestroy {
       this.buildHistory();
     });
     this.dataService.vacations$.pipe(takeUntil(this.destroy$)).subscribe(() => this.buildHistory());
+    this.dataService.holidays$.pipe(takeUntil(this.destroy$)).subscribe(h => this.holidays = h);
   }
 
   buildHistory(): void {
@@ -369,6 +435,267 @@ export class HistoryComponent implements OnInit, OnDestroy {
     return new Date(y, m - 1, d).toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
   }
 
-  // Placeholder — image export to be implemented once design is ready
-  exportMonth(_group: MonthGroup): void {}
+  // ── PNG export ────────────────────────────────────────────────────────────
+  //
+  // Renders an elegant report card (team | member | one column per day) straight
+  // to a <canvas>, then shows it in a preview modal with Copy/Download actions.
+  // No server round-trip, no library — the report is just rounded rects + text.
+
+  exportMonth(group: MonthGroup): void {
+    const rows = [...group.entries].sort((a, b) =>
+      a.member.department.localeCompare(b.member.department) ||
+      a.member.position.localeCompare(b.member.position) ||
+      a.member.name.localeCompare(b.member.name)
+    );
+
+    const vnHolidayDates = new Set(
+      this.holidays
+        .filter(h => {
+          const c = (h.country ?? '').toLowerCase();
+          return c.includes('viet') || c === 'vn';
+        })
+        .map(h => h.date)
+    );
+
+    const typeByDate = rows.map(entry => {
+      const map = new Map<string, VacationType>();
+      entry.vacations.forEach(v => map.set(v.date, v.type));
+      return map;
+    });
+
+    // ── Layout ──────────────────────────────────────────────────────────────
+    const teamColW = 90, nameColW = 170, dayColW = 27;
+    const dayNumH = 22, weekdayH = 18, headerH = dayNumH + weekdayH;
+    const rowH = 28;
+    const pad = 22, margin = 20, cardRadius = 18;
+    const titleH = 20, subtitleGap = 6, subtitleH = 15;
+    const gapBeforeGrid = 18, gapAfterGrid = 18, legendH = 16, gapBeforeFooter = 14, footerH = 12;
+
+    const gridW = teamColW + nameColW + group.daysInMonth * dayColW;
+    const cardW = gridW + pad * 2;
+    const cardH = pad
+      + titleH + subtitleGap + subtitleH + gapBeforeGrid
+      + headerH + rowH * rows.length + gapAfterGrid
+      + legendH + gapBeforeFooter + footerH
+      + pad;
+    const canvasW = cardW + margin * 2;
+    const canvasH = cardH + margin * 2;
+
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasW * dpr;
+    canvas.height = canvasH * dpr;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(dpr, dpr);
+
+    ctx.fillStyle = this.EXPORT_PAGE_BG;
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    const cardX = margin, cardY = margin;
+
+    ctx.save();
+    this.roundedRectPath(ctx, cardX, cardY, cardW, cardH, cardRadius);
+    ctx.clip();
+    ctx.fillStyle = this.EXPORT_CARD_BG;
+    ctx.fillRect(cardX, cardY, cardW, cardH);
+
+    const gridLeft = cardX + pad;
+    let cy = cardY + pad;
+
+    // Title + subtitle
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#0F172A';
+    ctx.font = 'bold 18px Arial, sans-serif';
+    ctx.fillText('Team Vacation Report', gridLeft, cy);
+    cy += titleH + subtitleGap;
+    ctx.fillStyle = '#64748B';
+    ctx.font = '12px Arial, sans-serif';
+    ctx.fillText(`${group.label} · sorted by team & role`, gridLeft, cy);
+    cy += subtitleH + gapBeforeGrid;
+
+    const gridTop = cy;
+
+    // Header band
+    ctx.fillStyle = this.EXPORT_HEADER_BG;
+    ctx.fillRect(gridLeft, gridTop, gridW, headerH);
+    ctx.fillStyle = this.EXPORT_ACCENT;
+    ctx.fillRect(gridLeft, gridTop + headerH - 3, gridW, 3);
+
+    ctx.fillStyle = this.EXPORT_HEADER_SUB;
+    ctx.font = 'bold 10px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('TEAM', gridLeft + 10, gridTop + headerH / 2);
+    ctx.fillText('MEMBER', gridLeft + teamColW + 10, gridTop + headerH / 2);
+
+    const weekdayAbbrev = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+    for (let d = 1; d <= group.daysInMonth; d++) {
+      const dx = gridLeft + teamColW + nameColW + (d - 1) * dayColW;
+      const dow = new Date(group.year, group.month - 1, d).getDay();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px Arial, sans-serif';
+      ctx.fillText(String(d), dx + dayColW / 2, gridTop + dayNumH / 2);
+      ctx.fillStyle = this.EXPORT_HEADER_SUB;
+      ctx.font = '9px Arial, sans-serif';
+      ctx.fillText(weekdayAbbrev[dow], dx + dayColW / 2, gridTop + dayNumH + weekdayH / 2);
+    }
+
+    // Data rows
+    const gridBodyTop = gridTop + headerH;
+    rows.forEach((entry, i) => {
+      const y = gridBodyTop + i * rowH;
+
+      if (i % 2 === 1) {
+        ctx.fillStyle = this.EXPORT_ROW_ALT_BG;
+        ctx.fillRect(gridLeft, y, gridW, rowH);
+      }
+
+      for (let d = 1; d <= group.daysInMonth; d++) {
+        const dow = new Date(group.year, group.month - 1, d).getDay();
+        if (dow === 0 || dow === 6) {
+          const dx = gridLeft + teamColW + nameColW + (d - 1) * dayColW;
+          ctx.fillStyle = this.EXPORT_WEEKEND_BG;
+          ctx.fillRect(dx, y, dayColW, rowH);
+        }
+      }
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#334155';
+      ctx.font = '600 11.5px Arial, sans-serif';
+      ctx.fillText(entry.member.department, gridLeft + 10, y + rowH / 2, teamColW - 16);
+      ctx.fillStyle = '#0F172A';
+      ctx.fillText(`${entry.member.avatarUrl}  ${entry.member.name}`, gridLeft + teamColW + 10, y + rowH / 2, nameColW - 16);
+
+      for (let d = 1; d <= group.daysInMonth; d++) {
+        const dx = gridLeft + teamColW + nameColW + (d - 1) * dayColW;
+        const dateStr = `${group.year}-${String(group.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const type = typeByDate[i].get(dateStr);
+        const style = type ? this.EXPORT_TYPE_STYLE[type]
+          : vnHolidayDates.has(dateStr) ? this.EXPORT_HOLIDAY_STYLE
+          : null;
+        if (!style) continue;
+
+        const chipW = dayColW - 6, chipH = rowH - 8;
+        this.roundedRectPath(ctx, dx + 3, y + 4, chipW, chipH, 5);
+        ctx.fillStyle = style.bg;
+        ctx.fill();
+        ctx.fillStyle = style.fg;
+        ctx.font = 'bold 11px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(style.letter, dx + dayColW / 2, y + rowH / 2 + 0.5);
+      }
+    });
+
+    // Column dividers + bottom border
+    const gridBodyBottom = gridBodyTop + rowH * rows.length;
+    ctx.strokeStyle = this.EXPORT_DIVIDER;
+    ctx.lineWidth = 1;
+    [teamColW, teamColW + nameColW].forEach(offset => {
+      const lx = gridLeft + offset + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(lx, gridTop);
+      ctx.lineTo(lx, gridBodyBottom);
+      ctx.stroke();
+    });
+    ctx.beginPath();
+    ctx.moveTo(gridLeft, gridBodyBottom + 0.5);
+    ctx.lineTo(gridLeft + gridW, gridBodyBottom + 0.5);
+    ctx.stroke();
+
+    cy = gridBodyBottom + gapAfterGrid;
+
+    // Legend
+    const legendItems: { bg: string; fg: string; label: string }[] = [
+      { bg: this.EXPORT_WEEKEND_BG, fg: '#64748B', label: 'Weekend' },
+      { bg: this.EXPORT_TYPE_STYLE.Vacation.bg, fg: this.EXPORT_TYPE_STYLE.Vacation.fg, label: 'Vacation (V)' },
+      { bg: this.EXPORT_TYPE_STYLE.Compensation.bg, fg: this.EXPORT_TYPE_STYLE.Compensation.fg, label: 'Compensation (C)' },
+      { bg: this.EXPORT_HOLIDAY_STYLE.bg, fg: this.EXPORT_HOLIDAY_STYLE.fg, label: 'VN Holiday (P)' },
+      { bg: this.EXPORT_TYPE_STYLE.Event.bg, fg: this.EXPORT_TYPE_STYLE.Event.fg, label: 'Event (E)' },
+    ];
+    let lx = gridLeft;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = '11px Arial, sans-serif';
+    legendItems.forEach(item => {
+      this.roundedRectPath(ctx, lx, cy + 1, 14, 14, 4);
+      ctx.fillStyle = item.bg;
+      ctx.fill();
+      ctx.fillStyle = '#475569';
+      ctx.fillText(item.label, lx + 20, cy + 8);
+      lx += 20 + ctx.measureText(item.label).width + 18;
+    });
+
+    cy += legendH + gapBeforeFooter;
+
+    // Footer
+    const generatedOn = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '10px Arial, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Generated ${generatedOn}`, gridLeft + gridW, cy + footerH / 2);
+
+    ctx.restore(); // drop the rounded-card clip
+
+    ctx.strokeStyle = this.EXPORT_DIVIDER;
+    ctx.lineWidth = 1;
+    this.roundedRectPath(ctx, cardX + 0.5, cardY + 0.5, cardW - 1, cardH - 1, cardRadius);
+    ctx.stroke();
+
+    canvas.toBlob(blob => {
+      // canvas.toBlob's callback isn't patched by zone.js, so re-enter Angular's
+      // zone explicitly — otherwise these updates never trigger change detection.
+      this.ngZone.run(() => {
+        if (!blob) return;
+        if (this.previewImageUrl) URL.revokeObjectURL(this.previewImageUrl);
+        this.previewBlob = blob;
+        this.previewImageUrl = URL.createObjectURL(blob);
+        this.previewFilename = `vacation-report-${group.year}-${String(group.month).padStart(2, '0')}.png`;
+        this.copyFeedback = null;
+      });
+    });
+  }
+
+  private roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+    const rad = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rad, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rad);
+    ctx.arcTo(x + w, y + h, x, y + h, rad);
+    ctx.arcTo(x, y + h, x, y, rad);
+    ctx.arcTo(x, y, x + w, y, rad);
+    ctx.closePath();
+  }
+
+  // ── Preview modal actions ─────────────────────────────────────────────────
+
+  closePreview(): void {
+    if (this.previewImageUrl) URL.revokeObjectURL(this.previewImageUrl);
+    this.previewImageUrl = null;
+    this.previewBlob = null;
+    this.previewFilename = '';
+    this.copyFeedback = null;
+  }
+
+  downloadPreview(): void {
+    if (!this.previewImageUrl) return;
+    const a = document.createElement('a');
+    a.href = this.previewImageUrl;
+    a.download = this.previewFilename;
+    a.click();
+  }
+
+  async copyPreviewImage(): Promise<void> {
+    if (!this.previewBlob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': this.previewBlob })]);
+      this.copyFeedback = 'Copied to clipboard!';
+    } catch {
+      this.copyFeedback = 'Copy failed — use Download instead.';
+    }
+    setTimeout(() => { this.copyFeedback = null; }, 2500);
+  }
 }
