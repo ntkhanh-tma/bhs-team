@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { filter } from 'rxjs/operators';
+import { catchError, filter, map } from 'rxjs/operators';
 import { SidebarComponent } from './shared/components/sidebar.component';
 import { LoginDialogComponent } from './shared/components/login-dialog.component';
 import { DataService } from './core/services/data.service';
@@ -244,9 +244,12 @@ export class AppComponent implements OnInit {
     this.http.get<DailyQuote[]>('https://api.api-ninjas.com/v1/quotes', {
       headers: { 'X-Api-Key': environment.apiNinjasKey },
       params: { work: 'true' },
-    }).subscribe({
-      next: res => {
-        const q = res?.[0] ?? null;
+    }).pipe(
+      map(res => res?.[0] ?? null),
+      // Fall back to the previous quote API if API Ninjas fails or is unreachable.
+      catchError(() => this.http.get<DailyQuote>('https://dummyjson.com/quotes/random')),
+    ).subscribe({
+      next: q => {
         this.quote = q;
         this.quoteLoading = false;
         if (q) this.cacheQuote(q);
