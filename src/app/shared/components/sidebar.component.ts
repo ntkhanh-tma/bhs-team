@@ -28,10 +28,11 @@ type UpcomingItem =
     <div class="w-52 flex-shrink-0 flex flex-col bg-white border-r border-gray-200 h-full shadow-sm">
 
       <!-- Brand header -->
-      <div class="bg-white border-b border-gray-100 px-4 py-2.5 flex items-center justify-center flex-shrink-0">
+      <a routerLink="/home"
+         class="bg-white border-b border-gray-100 px-4 py-2.5 flex items-center justify-center flex-shrink-0 cursor-pointer">
         <img src="images/bestmed_logo.png"
              class="h-[42px] w-auto object-contain" alt="BESTMED">
-      </div>
+      </a>
 
       <!-- Scrollable middle -->
       <div class="flex-1 overflow-y-auto">
