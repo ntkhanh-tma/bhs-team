@@ -300,7 +300,7 @@ export class HistoryComponent implements OnInit, OnDestroy {
   private readonly EXPORT_HOLIDAY_STYLE = { bg: '#DBEAFE', fg: '#2563EB', letter: 'P' };
   private readonly EXPORT_EVENT_COLOR   = '#D97706';
   private readonly EXPORT_RELEASE_COLOR = '#0EA5E9';
-  // Deterministic per-team row tint — same djb2-style hash used for team colors elsewhere in the app.
+  // Palette for per-team row tints, assigned by position per export (see renderExport).
   private readonly EXPORT_TEAM_ROW_COLORS = [
     '#EFF6FF', '#F0FDF4', '#FFF7ED', '#FDF4FF', '#FFF1F2',
     '#ECFEFF', '#FFFBEB', '#F0F9FF', '#F7FEE7', '#FFF0F0',
@@ -494,6 +494,13 @@ export class HistoryComponent implements OnInit, OnDestroy {
       return map;
     });
 
+    // Assign each distinct team a color by position (not by name hash) so that
+    // two team names never collide onto the same palette slot within a report.
+    const teamRowColorMap = new Map<string, string>();
+    Array.from(new Set(rows.map(entry => entry.member.department))).sort().forEach((team, i) => {
+      teamRowColorMap.set(team, this.EXPORT_TEAM_ROW_COLORS[i % this.EXPORT_TEAM_ROW_COLORS.length]);
+    });
+
     // ── Layout ──────────────────────────────────────────────────────────────
     const teamColW = 90, nameColW = 170, dayColW = 27;
     const dayNumH = 22, weekdayH = 18, headerH = dayNumH + weekdayH;
@@ -591,7 +598,7 @@ export class HistoryComponent implements OnInit, OnDestroy {
     rows.forEach((entry, i) => {
       const y = gridBodyTop + i * rowH;
 
-      ctx.fillStyle = this.teamRowColor(entry.member.department);
+      ctx.fillStyle = teamRowColorMap.get(entry.member.department)!;
       ctx.fillRect(gridLeft, y, gridW, rowH);
 
       for (let d = 1; d <= group.daysInMonth; d++) {
@@ -745,12 +752,6 @@ export class HistoryComponent implements OnInit, OnDestroy {
     }
     if (current) lines.push(current);
     return lines;
-  }
-
-  private teamRowColor(team: string): string {
-    let h = 0;
-    for (let i = 0; i < team.length; i++) h = (Math.imul(31, h) + team.charCodeAt(i)) | 0;
-    return this.EXPORT_TEAM_ROW_COLORS[Math.abs(h) % this.EXPORT_TEAM_ROW_COLORS.length];
   }
 
   // ── Preview modal actions ─────────────────────────────────────────────────

@@ -274,7 +274,7 @@ export class ApiService {
 
   /**
    * Converts various date string formats to YYYY-MM-DD.
-   * Handles: M/D/YYYY, DD/MM/YYYY, YYYY-MM-DD, and serial numbers (Google Sheets default).
+   * Handles: DD/MM/YYYY, M/D/YYYY, YYYY-MM-DD, and serial numbers (Google Sheets default).
    */
   private normalizeDate(raw: string): string {
     const s = (raw ?? '').trim();
@@ -291,9 +291,11 @@ export class ApiService {
     const slash = s.split('/');
     if (slash.length === 3) {
       const [a, b, c] = slash.map(Number);
-      if (c > 1000) return this.toIso(new Date(c, a - 1, b));
-      if (a > 12)   return this.toIso(new Date(c, b - 1, a));
-      return this.toIso(new Date(c, a - 1, b));
+      const year = c > 1000 ? c : (c < 100 ? 2000 + c : c);
+      // Default to day-first (DD/MM/YYYY), matching this app's en-AU convention;
+      // fall back to month-first only when the day-first reading is impossible.
+      if (b > 12 && a <= 12) return this.toIso(new Date(year, a - 1, b));
+      return this.toIso(new Date(year, b - 1, a));
     }
 
     const parsed = new Date(s);
