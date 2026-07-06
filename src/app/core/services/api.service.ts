@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, retry } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { Member, Holiday, Vacation, VacationType, ReleasePlan, EventPlan } from '../models/models';
 
@@ -108,8 +108,12 @@ export class ApiService {
   fetchDatabaseLookups(): Observable<DatabaseLookups> {
     const url = `${this.base}/Database!A:C?key=${this.key}`;
     return this.http.get<SheetsResponse>(url).pipe(
+      retry(2),
       map(res => this.parseDatabaseLookups(res.values ?? [])),
-      catchError(() => of({ teams: [], roles: [], dcs: [] }))
+      catchError(err => {
+        console.error('[ApiService] fetchDatabaseLookups failed:', err?.error?.error?.message ?? err.message);
+        return of({ teams: [], roles: [], dcs: [] });
+      })
     );
   }
 
@@ -187,10 +191,14 @@ export class ApiService {
   private parseDatabaseLookups(rows: string[][]): DatabaseLookups {
     if (rows.length < 2) return { teams: [], roles: [], dcs: [] };
     const data = rows.slice(1);
+    const EXCLUDED_ROLES = ['manager', 'team lead'];
+    const EXCLUDED_DCS = ['tma'];
     return {
       teams: [...new Set(data.map(r => (r[0] ?? '').trim()).filter(Boolean))],
-      roles: [...new Set(data.map(r => (r[1] ?? '').trim()).filter(Boolean))],
-      dcs:   [...new Set(data.map(r => (r[2] ?? '').trim()).filter(Boolean))],
+      roles: [...new Set(data.map(r => (r[1] ?? '').trim()).filter(Boolean))]
+        .filter(r => !EXCLUDED_ROLES.includes(r.toLowerCase())),
+      dcs:   [...new Set(data.map(r => (r[2] ?? '').trim()).filter(Boolean))]
+        .filter(d => !EXCLUDED_DCS.includes(d.toLowerCase())),
     };
   }
 

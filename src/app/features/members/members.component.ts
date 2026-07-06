@@ -270,7 +270,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       if (!u && !this.dataService.loading) this.router.navigate(['/home']);
     });
     this.dataService.members$.subscribe(members => {
-      this.allMembers = members;
+      this.allMembers = members.filter(m => m.position.trim().toLowerCase() !== 'manager');
       this.buildTeams();
     });
     this.dataService.vacations$.subscribe(vacations => {

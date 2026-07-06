@@ -37,17 +37,17 @@ type UpcomingItem =
       <!-- Scrollable middle -->
       <div class="flex-1 overflow-y-auto">
 
-        <!-- Nav tiles — 2×2 for logged-in, 1×2 for guests -->
-        <nav class="p-3 grid grid-cols-2 gap-2">
+        <!-- Nav tiles — stacked full-width rectangles -->
+        <nav class="p-3 flex flex-col gap-2">
           <a *ngFor="let t of visibleNavTiles"
              [routerLink]="t.route"
              routerLinkActive
              #rla="routerLinkActive"
-             class="flex flex-col items-center justify-center py-3.5 rounded-xl transition-all cursor-pointer select-none"
+             class="flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all cursor-pointer select-none"
              [style.background-color]="t.bg"
              [style.box-shadow]="rla.isActive ? '0 0 0 2.5px ' + t.border : 'none'">
-            <img [src]="'images/' + t.icon + '.png'" class="w-7 h-7 object-contain mb-1.5" alt="">
-            <span class="text-[11px] font-bold" [style.color]="t.text">{{ t.label }}</span>
+            <img [src]="'images/' + t.icon + '.png'" class="w-6 h-6 object-contain flex-shrink-0" alt="">
+            <span class="text-sm font-bold" [style.color]="t.text">{{ t.label }}</span>
           </a>
         </nav>
 
