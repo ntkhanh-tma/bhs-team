@@ -17,16 +17,19 @@
       • fonts.googleapis.com / fonts.gstatic.com: Angular inlines fonts at build time
         (optimization.fonts.inline = true), so these entries are only needed for
         local development where build-time inlining doesn't run.
-      • sheets.googleapis.com: required for the Google Sheets data API.
+      • script.google(usercontent).com: the Apps Script gateway (all sheet data).
       • img-src blob: required to preview the canvas-generated export report (object URLs).
       • frame-ancestors 'none': modern replacement for X-Frame-Options: DENY.
+        NOTE: frame-ancestors is ignored when CSP is delivered via <meta>; to
+        actually block framing you need an HTTP header (not possible on GitHub
+        Pages). Kept here as documentation only.
   -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
                  script-src 'self';
                  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
                  font-src 'self' https://fonts.gstatic.com data:;
-                 connect-src 'self' https://sheets.googleapis.com https://script.google.com https://script.googleusercontent.com https://api.api-ninjas.com https://dummyjson.com;
+                 connect-src 'self' https://script.google.com https://script.googleusercontent.com https://api.api-ninjas.com https://dummyjson.com;
                  img-src 'self' data: blob: https:;
                  frame-ancestors 'none';">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">

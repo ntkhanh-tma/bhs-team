@@ -193,14 +193,6 @@ const teamColorOf = (name: string): TeamColor => {
                 <span class="text-xs w-3.5 text-center flex-shrink-0">&#127991;</span>
                 <span class="text-sm text-[#475569]">{{ tooltipMember.position || '—' }}</span>
               </div>
-              <div class="flex items-center gap-2.5">
-                <span class="text-xs w-3.5 text-center flex-shrink-0">&#128187;</span>
-                <span class="text-sm font-mono text-[#475569]">{{ tooltipMember.ip || '—' }}</span>
-              </div>
-              <div class="flex items-center gap-2.5">
-                <span class="text-xs w-3.5 text-center flex-shrink-0">&#128241;</span>
-                <span class="text-sm text-[#475569]">{{ tooltipMember.mobile || '—' }}</span>
-              </div>
             </div>
           </div>
         </div>

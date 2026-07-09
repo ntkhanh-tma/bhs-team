@@ -317,7 +317,13 @@ export class ProfileComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.dataService.authenticatedUser$.pipe(takeUntil(this.destroy$)).subscribe(u => {
       this.user = u;
-      if (u) this.populateForm(u);
+      if (!u) return;
+      // The directory list omits sensitive fields (IP/MAC/email/etc), so fetch
+      // this user's full record from the gateway to fill the editor.
+      this.populateForm(u);
+      this.apiService.fetchProfile(u.username)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(full => { if (full) this.populateForm({ ...u, ...full }); });
     });
     this.apiService.fetchDatabaseLookups().subscribe(l => this.lookups = l);
   }
