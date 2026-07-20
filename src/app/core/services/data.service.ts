@@ -17,6 +17,7 @@ export class DataService {
   private eventPlansSubject   = new BehaviorSubject<EventPlan[]>([]);
   private authenticatedUser$$ = new BehaviorSubject<Member | null>(null);
   private loading$$           = new BehaviorSubject<boolean>(true);
+  private loadError$$         = new BehaviorSubject<boolean>(false);
 
   readonly members$           = this.membersSubject.asObservable();
   readonly holidays$          = this.holidaysSubject.asObservable();
@@ -25,6 +26,8 @@ export class DataService {
   readonly eventPlans$        = this.eventPlansSubject.asObservable();
   readonly authenticatedUser$ = this.authenticatedUser$$.asObservable();
   readonly loading$           = this.loading$$.asObservable();
+  /** True when the member list could not be loaded — distinct from "user not found". */
+  readonly loadError$         = this.loadError$$.asObservable();
 
   constructor(private api: ApiService) {
     this.loadRemoteData();
@@ -32,8 +35,14 @@ export class DataService {
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
+  /** Re-runs the initial load. Used by the login dialog to recover from a failed fetch. */
+  reload(): void {
+    this.loadRemoteData();
+  }
+
   private loadRemoteData(): void {
     this.loading$$.next(true);
+    this.loadError$$.next(false);
     combineLatest([
       this.api.fetchMembers(),
       this.api.fetchHolidays(),
@@ -47,6 +56,10 @@ export class DataService {
         this.vacationsSubject.next(vacations);
         this.releasePlansSubject.next(releasePlans);
         this.eventPlansSubject.next(eventPlans);
+        // An empty member list means the gateway read failed (after retries) or
+        // returned nothing usable — treat it as a load error rather than letting
+        // login report every valid user as "not found".
+        this.loadError$$.next(members.length === 0);
         this.loading$$.next(false);
         // Auto-login from saved session
         try {
@@ -57,7 +70,10 @@ export class DataService {
           }
         } catch {}
       },
-      error: () => this.loading$$.next(false),
+      error: () => {
+        this.loadError$$.next(true);
+        this.loading$$.next(false);
+      },
     });
   }
 

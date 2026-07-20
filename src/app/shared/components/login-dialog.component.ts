@@ -32,7 +32,26 @@ import { DataService } from '../../core/services/data.service';
           Loading member list…
         </div>
 
-        <ng-container *ngIf="!loading">
+        <!-- Load failure: the member list never arrived, so any login would wrongly
+             report "not found". Offer a retry instead. -->
+        <div *ngIf="!loading && loadError" class="py-4">
+          <p class="text-sm text-[#1E293B]">
+            We couldn't load the member list. This is usually a temporary connection issue.
+          </p>
+          <p class="text-red-500 text-xs mt-2">Please try again.</p>
+          <div class="flex gap-3 mt-6">
+            <button (click)="close.emit()"
+              class="flex-1 border border-gray-200 text-[#1E293B] rounded-lg py-2.5 text-sm font-medium hover:bg-gray-50">
+              Cancel
+            </button>
+            <button (click)="onRetry()"
+              class="flex-1 bg-[#003bc4] text-white rounded-lg py-2.5 text-sm font-medium hover:bg-[#002da3]">
+              Retry
+            </button>
+          </div>
+        </div>
+
+        <ng-container *ngIf="!loading && !loadError">
           <div class="mb-4">
             <label class="block text-sm font-medium text-[#1E293B] mb-2">Username</label>
             <input
@@ -68,11 +87,13 @@ export class LoginDialogComponent implements OnInit {
   username = '';
   error = '';
   loading = true;
+  loadError = false;
 
   constructor(private dataService: DataService) {}
 
   ngOnInit(): void {
     this.dataService.loading$.subscribe(l => this.loading = l);
+    this.dataService.loadError$.subscribe(e => this.loadError = e);
   }
 
   onLogin(): void {
@@ -87,6 +108,11 @@ export class LoginDialogComponent implements OnInit {
     } else {
       this.error = `Username "${u}" was not found. Please check your username and try again.`;
     }
+  }
+
+  onRetry(): void {
+    this.error = '';
+    this.dataService.reload();
   }
 
   onBackdropClick(_event: MouseEvent): void { this.close.emit(); }

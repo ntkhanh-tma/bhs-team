@@ -107,6 +107,11 @@ export class ApiService {
     }
     const qs = new URLSearchParams({ action, secret: this.secret, ...params }).toString();
     return this.http.get<GatewayResponse<T>>(`${this.gatewayUrl}?${qs}`).pipe(
+      // The data source (Google Sheet, read server-side) fails transiently —
+      // rate limits and short-lived errors. Retry with backoff so a single
+      // hiccup doesn't surface as empty data, which login would then misreport
+      // as "user not found".
+      retry({ count: 3, delay: 700 }),
       catchError(err => {
         console.error(`[ApiService] ${action} failed:`, err?.message ?? err);
         return of({ success: false, error: 'request failed' } as GatewayResponse<T>);
