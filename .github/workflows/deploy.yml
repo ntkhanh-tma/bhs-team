@@ -37,20 +37,25 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
 
-      # ── 4. Secrets → environment files ──────────────────────────────────
+      # ── 4. Config → environment files ───────────────────────────────────
       #
-      # The app talks only to the Apps Script gateway — no Google API key or
-      # spreadsheet ID is baked into the bundle. Set these repo secrets:
-      #   GitHub repo → Settings → Secrets and variables → Actions → Secrets
-      #     VACATION_API_URL  — the gateway /exec URL
-      #     GATEWAY_SECRET    — must match the APP_SECRET script property
-      #     API_NINJAS_KEY    — daily riddle widget
+      # Nothing secret ships in the bundle any more: the .NET API authenticates
+      # each user with a JWT, so the old GATEWAY_SECRET is gone entirely.
       #
-      - name: Generate environment files from secrets
+      # API_BASE_URL is a public URL and defaults to the App Service origin in
+      # scripts/setup-env.js — the repo variable below is only an override, so a
+      # missing value cannot silently produce a build with no backend.
+      #   GitHub repo → Settings → Secrets and variables → Actions
+      #     Variables: API_BASE_URL    (optional override)
+      #     Secrets:   API_NINJAS_KEY  (daily riddle widget)
+      #
+      # The retired VACATION_API_URL and GATEWAY_SECRET secrets can be deleted
+      # once the Apps Script deployment is turned off.
+      #
+      - name: Generate environment files
         env:
-          VACATION_API_URL: ${{ secrets.VACATION_API_URL }}
-          GATEWAY_SECRET:   ${{ secrets.GATEWAY_SECRET }}
-          API_NINJAS_KEY:   ${{ secrets.API_NINJAS_KEY }}
+          API_BASE_URL:   ${{ vars.API_BASE_URL }}
+          API_NINJAS_KEY: ${{ secrets.API_NINJAS_KEY }}
         run: node scripts/setup-env.js
 
       # ── 5. Determine base-href ────────────────────────────────────────────

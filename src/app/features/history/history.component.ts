@@ -660,8 +660,8 @@ export class HistoryComponent implements OnInit, OnDestroy {
     // Legend
     const legendItems: { bg: string; fg: string; label: string }[] = [
       { bg: this.EXPORT_WEEKEND_BG, fg: '#64748B', label: 'Weekend' },
-      { bg: this.EXPORT_TYPE_STYLE.Vacation.bg, fg: this.EXPORT_TYPE_STYLE.Vacation.fg, label: 'Vacation (V)' },
-      { bg: this.EXPORT_TYPE_STYLE.Compensation.bg, fg: this.EXPORT_TYPE_STYLE.Compensation.fg, label: 'Compensation (C)' },
+      { bg: this.EXPORT_TYPE_STYLE['Vacation'].bg, fg: this.EXPORT_TYPE_STYLE['Vacation'].fg, label: 'Vacation (V)' },
+      { bg: this.EXPORT_TYPE_STYLE['Compensation'].bg, fg: this.EXPORT_TYPE_STYLE['Compensation'].fg, label: 'Compensation (C)' },
       { bg: this.EXPORT_HOLIDAY_STYLE.bg, fg: this.EXPORT_HOLIDAY_STYLE.fg, label: 'VN Holiday (P)' },
       { bg: this.EXPORT_TYPE_STYLE['Special Leave'].bg, fg: this.EXPORT_TYPE_STYLE['Special Leave'].fg, label: 'Special Leave (S)' },
     ];

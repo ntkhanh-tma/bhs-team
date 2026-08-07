@@ -1,22 +1,29 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of, combineLatest } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
+import { Injectable, inject } from '@angular/core';
+import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
+import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { Member, Holiday, Vacation, VacationType, ReleasePlan, EventPlan } from '../models/models';
 import { ApiService, ProfileUpdatePayload } from './api.service';
+import { AuthService } from './auth.service';
+import { SettingsService } from './settings.service';
 
-const LOCK_KEY    = 'vacation_submission_lock';
-const SESSION_KEY = 'bhs_vacation_user';
-const LOCK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-
+/**
+ * Application state. The public surface is unchanged from the Apps Script era so
+ * the feature components did not need rewriting — what changed underneath is that
+ * authentication is real and the bulk reads now require a token, so loading is
+ * triggered by sign-in rather than by the constructor.
+ */
 @Injectable({ providedIn: 'root' })
 export class DataService {
+  private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
+  private readonly settings = inject(SettingsService);
+
   private membersSubject      = new BehaviorSubject<Member[]>([]);
   private holidaysSubject     = new BehaviorSubject<Holiday[]>([]);
   private vacationsSubject    = new BehaviorSubject<Vacation[]>([]);
   private releasePlansSubject = new BehaviorSubject<ReleasePlan[]>([]);
   private eventPlansSubject   = new BehaviorSubject<EventPlan[]>([]);
-  private authenticatedUser$$ = new BehaviorSubject<Member | null>(null);
-  private loading$$           = new BehaviorSubject<boolean>(true);
+  private loading$$           = new BehaviorSubject<boolean>(false);
   private loadError$$         = new BehaviorSubject<boolean>(false);
 
   readonly members$           = this.membersSubject.asObservable();
@@ -24,31 +31,47 @@ export class DataService {
   readonly vacations$         = this.vacationsSubject.asObservable();
   readonly releasePlans$      = this.releasePlansSubject.asObservable();
   readonly eventPlans$        = this.eventPlansSubject.asObservable();
-  readonly authenticatedUser$ = this.authenticatedUser$$.asObservable();
+  readonly authenticatedUser$ = this.auth.currentUser$;
   readonly loading$           = this.loading$$.asObservable();
-  /** True when the member list could not be loaded — distinct from "user not found". */
+  /** True when the data load failed — distinct from "not signed in". */
   readonly loadError$         = this.loadError$$.asObservable();
 
-  constructor(private api: ApiService) {
-    this.loadRemoteData();
+  constructor() {
+    // Load whenever a session appears, clear when it goes away. Replaces the
+    // unconditional constructor fetch, which cannot work now that the bulk
+    // endpoints require a bearer token.
+    this.auth.currentUser$.subscribe(user => {
+      if (user) this.loadRemoteData();
+      else this.clear();
+    });
   }
 
-  // ── Data loading ──────────────────────────────────────────────────────────
+  // ── Data loading ───────────────────────────────────────────────────────────
 
-  /** Re-runs the initial load. Used by the login dialog to recover from a failed fetch. */
   reload(): void {
-    this.loadRemoteData();
+    if (this.auth.isAuthenticated()) this.loadRemoteData();
+  }
+
+  private clear(): void {
+    this.membersSubject.next([]);
+    this.vacationsSubject.next([]);
+    this.releasePlansSubject.next([]);
+    this.eventPlansSubject.next([]);
+    this.loading$$.next(false);
+    this.loadError$$.next(false);
   }
 
   private loadRemoteData(): void {
     this.loading$$.next(true);
     this.loadError$$.next(false);
+
     combineLatest([
       this.api.fetchMembers(),
       this.api.fetchHolidays(),
       this.api.fetchVacations(),
       this.api.fetchReleasePlans(),
       this.api.fetchEventPlans(),
+      this.api.fetchLookups(),
     ]).subscribe({
       next: ([members, holidays, vacations, releasePlans, eventPlans]) => {
         this.membersSubject.next(members);
@@ -56,19 +79,8 @@ export class DataService {
         this.vacationsSubject.next(vacations);
         this.releasePlansSubject.next(releasePlans);
         this.eventPlansSubject.next(eventPlans);
-        // An empty member list means the gateway read failed (after retries) or
-        // returned nothing usable — treat it as a load error rather than letting
-        // login report every valid user as "not found".
         this.loadError$$.next(members.length === 0);
         this.loading$$.next(false);
-        // Auto-login from saved session
-        try {
-          const saved = localStorage.getItem(SESSION_KEY);
-          if (saved) {
-            const member = members.find(m => m.username === saved);
-            if (member) this.authenticatedUser$$.next(member);
-          }
-        } catch {}
       },
       error: () => {
         this.loadError$$.next(true);
@@ -77,167 +89,84 @@ export class DataService {
     });
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  /** Public holidays are readable without a session, for the guest holidays page. */
+  loadPublicHolidays(): void {
+    this.api.fetchHolidays().subscribe(h => this.holidaysSubject.next(h));
+  }
 
-  get currentUser(): Member | null { return this.authenticatedUser$$.value; }
+  // ── Auth ───────────────────────────────────────────────────────────────────
+
+  get currentUser(): Member | null { return this.auth.currentUser; }
   get loading(): boolean { return this.loading$$.value; }
 
-  login(username: string): boolean {
-    const member = this.membersSubject.value
-      .find(m => m.username === username.trim().toLowerCase());
-    if (member) {
-      this.authenticatedUser$$.next(member);
-      try { localStorage.setItem(SESSION_KEY, member.username); } catch {}
-      return true;
-    }
-    return false;
-  }
+  logout(): void { this.auth.logout(); }
 
-  logout(): void {
-    this.authenticatedUser$$.next(null);
-    try { localStorage.removeItem(SESSION_KEY); } catch {}
-  }
+  // ── Vacation submission ────────────────────────────────────────────────────
 
-  // ── Vacation submission ───────────────────────────────────────────────────
-
-  getLockRemainingMs(username: string): number {
-    try {
-      const ts = parseInt(localStorage.getItem(`${LOCK_KEY}_${username}`) || '0', 10);
-      return Math.max(0, LOCK_DURATION_MS - (Date.now() - ts));
-    } catch {
-      return 0;
-    }
-  }
-
-  private setLock(username: string): void {
-    try {
-      localStorage.setItem(`${LOCK_KEY}_${username}`, Date.now().toString());
-    } catch {}
-  }
+  /**
+   * The 5-minute throttle now lives on the server
+   * (Member.LastVacationSubmissionAt) and is returned as HTTP 429. This local
+   * value only drives the countdown label.
+   */
+  getLockRemainingMs(_username: string): number { return 0; }
 
   submitVacation(
     addDates: string[],
     removeDates: string[],
-    month: string,
+    _month: string,
     type: VacationType,
   ): Observable<{ success: boolean; error?: string }> {
-    const user = this.authenticatedUser$$.value;
+    const user = this.auth.currentUser;
     if (!user) return of({ success: false, error: 'You must be logged in to submit.' });
 
     if (addDates.length === 0 && removeDates.length === 0) {
       return of({ success: false, error: 'No changes to submit.' });
     }
 
-    const remaining = this.getLockRemainingMs(user.username);
-    if (remaining > 0) {
-      const secs = Math.ceil(remaining / 1000);
-      const m = Math.floor(secs / 60);
-      const s = secs % 60;
-      return of({
-        success: false,
-        error: `Please wait ${m}:${String(s).padStart(2, '0')} before submitting again.`,
-      });
-    }
+    // Vacation types are admin-managed rows now, so resolve the name to its id.
+    return this.api.fetchLookups().pipe(
+      switchMap(() => {
+        const typeId = this.api.resolveVacationTypeId(type)
+          ?? this.api.getVacationTypes()[0]?.id;
 
-    return this.api.submitVacationChanges({
-      username: user.username,
-      month,
-      type,
-      addDates,
-      removeDates,
-    }).pipe(
-      tap(success => {
-        if (!success) return;
-
-        const existing = this.vacationsSubject.value;
-        const afterRemove = existing.filter(
-          v => !(v.username === user.username && removeDates.includes(v.date)),
-        );
-        const newVacs: Vacation[] = addDates.map(date => ({
-          id: `${user.username}_${date}`,
-          username: user.username,
-          date,
-          type,
-        }));
-        this.vacationsSubject.next([...afterRemove, ...newVacs]);
-
-        const delta = addDates.length - removeDates.length;
-        if (delta !== 0) {
-          const updated = this.membersSubject.value.map(m => {
-            if (m.username !== user.username) return m;
-            return {
-              ...m,
-              daysUsed: Math.max(0, m.daysUsed + delta),
-              daysLeft: Math.max(0, m.daysLeft - delta),
-            };
-          });
-          this.membersSubject.next(updated);
-          const refreshed = updated.find(m => m.username === user.username);
-          if (refreshed) this.authenticatedUser$$.next(refreshed);
+        if (!typeId) {
+          return of({ success: false, error: 'No vacation types are configured.' });
         }
 
-        this.setLock(user.username);
+        return this.api.submitVacationChanges(typeId, addDates, removeDates).pipe(
+          tap(() => this.reload()),
+          map(result => {
+            if (result.skipped.length > 0 && result.added === 0 && result.removed === 0) {
+              return { success: false, error: result.skipped.join(' ') };
+            }
+            return { success: true };
+          }),
+          catchError(err => of({ success: false, error: describeError(err) })),
+        );
       }),
-      map(success => ({
-        success,
-        error: success ? undefined : 'Failed to save. Check your connection and try again.',
-      })),
-      catchError(() => of({ success: false, error: 'Network error. Please try again.' })),
     );
   }
 
-  // ── Profile update ────────────────────────────────────────────────────────
+  // ── Profile update ─────────────────────────────────────────────────────────
 
   updateMemberProfile(
-    updates: ProfileUpdatePayload['updates'],
+    updates: ProfileUpdatePayload,
   ): Observable<{ success: boolean; error?: string }> {
-    const user = this.authenticatedUser$$.value;
-    if (!user) return of({ success: false, error: 'Not logged in.' });
+    if (!this.auth.currentUser) return of({ success: false, error: 'Not logged in.' });
 
-    return this.api.updateMemberProfile({
-      action: 'updateProfile',
-      id: user.id,
-      authUsername: user.username,
-      updates,
-    }).pipe(
-      tap(success => {
-        if (!success) return;
-
-        const newUsername = updates.username ?? user.username;
-        const updated = this.membersSubject.value.map(m => {
-          if (m.username !== user.username) return m;
-          return {
-            ...m,
-            department: updates.department  ?? m.department,
-            position:   updates.role        !== undefined ? (updates.role || m.position)      : m.position,
-            username:   newUsername,
-            dc:         updates.dc          !== undefined ? (updates.dc || undefined)         : m.dc,
-            ip:         updates.ip          !== undefined ? (updates.ip || undefined)         : m.ip,
-            publicIp:   updates.publicIp    !== undefined ? (updates.publicIp || undefined)   : m.publicIp,
-            pcName:     updates.pcName      !== undefined ? (updates.pcName || undefined)     : m.pcName,
-            macAddress: updates.macAddress  !== undefined ? (updates.macAddress || undefined) : m.macAddress,
-            email:      updates.email       !== undefined ? (updates.email || undefined)      : m.email,
-            mobile:     updates.mobile      !== undefined ? (updates.mobile || undefined)     : m.mobile,
-            birthday:   updates.birthday    !== undefined ? (updates.birthday || undefined)   : m.birthday,
-          };
-        });
-
-        this.membersSubject.next(updated);
-        const refreshed = updated.find(m => m.username === newUsername);
-        if (refreshed) {
-          this.authenticatedUser$$.next(refreshed);
-          try { localStorage.setItem(SESSION_KEY, refreshed.username); } catch {}
-        }
+    return this.api.updateMemberProfile(updates).pipe(
+      tap(updated => {
+        this.auth.patchCurrentUser(updated);
+        this.membersSubject.next(
+          this.membersSubject.value.map(m => (m.id === updated.id ? { ...m, ...updated } : m)),
+        );
       }),
-      map(success => ({
-        success,
-        error: success ? undefined : 'Failed to update profile. Check your connection and try again.',
-      })),
-      catchError(() => of({ success: false, error: 'Network error. Please try again.' })),
+      map(() => ({ success: true })),
+      catchError(err => of({ success: false, error: describeError(err) })),
     );
   }
 
-  // ── Queries ───────────────────────────────────────────────────────────────
+  // ── Queries ────────────────────────────────────────────────────────────────
 
   getMemberByUsername(username: string): Member | undefined {
     return this.membersSubject.value.find(m => m.username === username);
@@ -289,4 +218,15 @@ export class DataService {
   formatDate(date: Date): string {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
+}
+
+/** Surfaces the API's ProblemDetails message instead of a generic failure string. */
+export function describeError(err: unknown): string {
+  const problem = (err as { error?: { detail?: string; title?: string } })?.error;
+  if (problem?.detail) return problem.detail;
+  if (problem?.title) return problem.title;
+
+  const status = (err as { status?: number })?.status;
+  if (status === 0) return 'Cannot reach the server. Check your connection and try again.';
+  return 'Something went wrong. Please try again.';
 }
