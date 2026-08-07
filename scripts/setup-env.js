@@ -33,12 +33,24 @@ function readEnvLocal() {
   return vars;
 }
 
-const local = readEnvLocal();
-const apiBaseUrl   = (local.API_BASE_URL   ?? process.env.API_BASE_URL   ?? '').replace(/\/+$/, '');
-const apiNinjasKey =  local.API_NINJAS_KEY ?? process.env.API_NINJAS_KEY ?? '';
+// The API origin is a public URL, not a secret — so it has a sensible default
+// rather than living in a repo secret. Override with API_BASE_URL for local dev
+// (http://localhost:5199) or if the App Service is ever renamed.
+const DEFAULT_API_BASE_URL =
+  'https://bhs-team-fgf3cfgqhxbjctax.southeastasia-01.azurewebsites.net';
 
+const local = readEnvLocal();
+const apiBaseUrl = (local.API_BASE_URL ?? process.env.API_BASE_URL ?? DEFAULT_API_BASE_URL)
+  .replace(/\/+$/, '');
+const apiNinjasKey = local.API_NINJAS_KEY ?? process.env.API_NINJAS_KEY ?? '';
+
+if (apiBaseUrl === DEFAULT_API_BASE_URL) {
+  console.log(`[setup-env] Using default API base URL: ${apiBaseUrl}`);
+}
 if (!apiBaseUrl) {
-  console.warn('[setup-env] WARNING: API_BASE_URL is empty — the app cannot read or write data.');
+  // Only reachable if someone explicitly sets API_BASE_URL to an empty string.
+  console.error('[setup-env] ERROR: API_BASE_URL resolved to empty — the app would have no backend.');
+  process.exit(1);
 }
 if (!apiNinjasKey) {
   console.warn('[setup-env] WARNING: API_NINJAS_KEY is empty — daily quote will not work.');

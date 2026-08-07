@@ -132,6 +132,13 @@ export class HolidaysComponent implements OnInit, OnDestroy {
     this.dataService.holidays$.pipe(takeUntil(this.destroy$)).subscribe(holidays => {
       this.buildGroups(holidays);
     });
+
+    // This is the one page guests can still reach, and the bulk load only runs
+    // for signed-in users, so fetch holidays directly when there is no session.
+    // The API serves /api/holidays anonymously — it holds no personal data.
+    if (!this.dataService.currentUser) {
+      this.dataService.loadPublicHolidays();
+    }
   }
 
   ngOnDestroy(): void {

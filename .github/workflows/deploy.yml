@@ -41,18 +41,20 @@ jobs:
       #
       # Nothing secret ships in the bundle any more: the .NET API authenticates
       # each user with a JWT, so the old GATEWAY_SECRET is gone entirely.
-      # Set these repo secrets:
-      #   GitHub repo → Settings → Secrets and variables → Actions → Secrets
-      #     API_BASE_URL    — the .NET API origin, e.g.
-      #                       https://bhs-team-api.azurewebsites.net
-      #     API_NINJAS_KEY  — daily riddle widget
+      #
+      # API_BASE_URL is a public URL and defaults to the App Service origin in
+      # scripts/setup-env.js — the repo variable below is only an override, so a
+      # missing value cannot silently produce a build with no backend.
+      #   GitHub repo → Settings → Secrets and variables → Actions
+      #     Variables: API_BASE_URL    (optional override)
+      #     Secrets:   API_NINJAS_KEY  (daily riddle widget)
       #
       # The retired VACATION_API_URL and GATEWAY_SECRET secrets can be deleted
       # once the Apps Script deployment is turned off.
       #
-      - name: Generate environment files from secrets
+      - name: Generate environment files
         env:
-          API_BASE_URL:   ${{ secrets.API_BASE_URL }}
+          API_BASE_URL:   ${{ vars.API_BASE_URL }}
           API_NINJAS_KEY: ${{ secrets.API_NINJAS_KEY }}
         run: node scripts/setup-env.js
 
