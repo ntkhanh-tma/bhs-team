@@ -1,19 +1,27 @@
-export type VacationType = 'Vacation' | 'Compensation' | 'Special Leave';
+export type VacationType = string;
+
+/**
+ * Permission level. Deliberately NOT called "role": `position` below is the
+ * free-text job title the sheet called "Role".
+ */
+export type AccessRole = 'Member' | 'Admin';
 
 export interface Member {
-  id: string;            // A — row identifier, never displayed
-  username: string;      // F — owner only
-  name: string;          // E — display name, not editable
-  department: string;    // C — Team
-  position: string;      // D — Role, not editable
-  dc?: string;           // B — owner only
-  ip?: string;           // G — owner only
-  publicIp?: string;     // H — owner only
-  pcName?: string;       // I — owner only
-  macAddress?: string;   // J — owner only
-  email?: string;        // K — BHS email, owner only
-  mobile?: string;       // L — owner only
-  birthday?: string;     // M — owner only
+  id: string;            // server-side identifier (GUID), never displayed
+  username: string;      // login key
+  name: string;          // display name, not self-editable
+  department: string;    // Team
+  position: string;      // job title
+  dc?: string;           // Origin — owner (or admin) only
+  ip?: string;           // owner only
+  publicIp?: string;     // owner only
+  pcName?: string;       // owner only
+  macAddress?: string;   // owner only
+  email?: string;        // owner only
+  mobile?: string;       // owner only
+  birthday?: string;     // DD/MM — owner only
+  accessRole?: AccessRole;
+  isActive?: boolean;
   daysUsed: number;
   daysLeft: number;
   avatarUrl: string;

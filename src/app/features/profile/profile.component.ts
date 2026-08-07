@@ -319,9 +319,9 @@ export class ProfileComponent implements OnInit, OnDestroy {
       this.user = u;
       if (!u) return;
       // The directory list omits sensitive fields (IP/MAC/email/etc), so fetch
-      // this user's full record from the gateway to fill the editor.
+      // this user's own full record to fill the editor.
       this.populateForm(u);
-      this.apiService.fetchProfile(u.username)
+      this.apiService.fetchProfile()
         .pipe(takeUntil(this.destroy$))
         .subscribe(full => { if (full) this.populateForm({ ...u, ...full }); });
     });
@@ -424,9 +424,10 @@ export class ProfileComponent implements OnInit, OnDestroy {
     this.saving = true;
     this.statusMsg = '';
 
-    const updates: ProfileUpdatePayload['updates'] = {
+    const updates: ProfileUpdatePayload = {
       department: this.form.department.trim(),
-      role:       this.form.role.trim(),
+      // The API calls this "position"; the sheet called the same column "Role".
+      position:   this.form.role.trim(),
       dc:         this.form.dc.trim(),
       ip:         this.form.ip.trim(),
       publicIp:   this.form.publicIp.trim(),

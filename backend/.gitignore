@@ -1,0 +1,13 @@
+# .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+*.user
+*.suo
+
+# Local secrets never live in the repo — use `dotnet user-secrets` locally and
+# Azure App Service configuration in production.
+appsettings.*.local.json
+secrets.json
