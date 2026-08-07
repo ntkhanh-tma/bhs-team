@@ -39,16 +39,27 @@ function readEnvLocal() {
 const DEFAULT_API_BASE_URL =
   'https://bhs-team-fgf3cfgqhxbjctax.southeastasia-01.azurewebsites.net';
 
+// GitHub Actions renders an unset `vars.X` / `secrets.X` as an EMPTY STRING, not
+// as an absent variable — so `??` would happily accept '' and skip the default.
+// Treat blank as absent.
+const firstNonBlank = (...values) =>
+  values.find(v => typeof v === 'string' && v.trim() !== '');
+
 const local = readEnvLocal();
-const apiBaseUrl = (local.API_BASE_URL ?? process.env.API_BASE_URL ?? DEFAULT_API_BASE_URL)
-  .replace(/\/+$/, '');
-const apiNinjasKey = local.API_NINJAS_KEY ?? process.env.API_NINJAS_KEY ?? '';
+const apiBaseUrl = firstNonBlank(
+  local.API_BASE_URL,
+  process.env.API_BASE_URL,
+  DEFAULT_API_BASE_URL,
+).replace(/\/+$/, '');
+
+const apiNinjasKey = firstNonBlank(local.API_NINJAS_KEY, process.env.API_NINJAS_KEY) ?? '';
 
 if (apiBaseUrl === DEFAULT_API_BASE_URL) {
   console.log(`[setup-env] Using default API base URL: ${apiBaseUrl}`);
 }
 if (!apiBaseUrl) {
-  // Only reachable if someone explicitly sets API_BASE_URL to an empty string.
+  // Unreachable while DEFAULT_API_BASE_URL is non-empty, but fail loudly rather
+  // than emit a bundle that cannot reach any backend.
   console.error('[setup-env] ERROR: API_BASE_URL resolved to empty — the app would have no backend.');
   process.exit(1);
 }
