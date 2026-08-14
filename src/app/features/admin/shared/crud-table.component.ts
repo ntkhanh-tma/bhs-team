@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
@@ -42,7 +42,7 @@ import { EntityConfig, FieldDef } from './crud-types';
 
     <mat-form-field appearance="outline" class="w-full max-w-xs">
       <mat-label>Filter</mat-label>
-      <input matInput (input)="applyFilter($event)" placeholder="Type to filter…" />
+      <input matInput [value]="filterText" (input)="applyFilter($event)" placeholder="Type to filter…" />
     </mat-form-field>
 
     <mat-progress-bar *ngIf="loading" mode="indeterminate" class="mb-2"></mat-progress-bar>
@@ -87,7 +87,7 @@ import { EntityConfig, FieldDef } from './crud-types';
     <mat-paginator [pageSizeOptions]="[10, 25, 50, 100]" pageSize="25" showFirstLastButtons />
   `,
 })
-export class CrudTableComponent<T extends { id: string }> implements OnInit {
+export class CrudTableComponent<T extends { id: string }> implements OnChanges {
   @Input({ required: true }) config!: EntityConfig<T>;
 
   private readonly dialog = inject(MatDialog);
@@ -95,6 +95,7 @@ export class CrudTableComponent<T extends { id: string }> implements OnInit {
 
   readonly dataSource = new MatTableDataSource<T>([]);
   loading = false;
+  filterText = '';
   tableFields: FieldDef[] = [];
   displayedColumns: string[] = [];
 
@@ -105,10 +106,25 @@ export class CrudTableComponent<T extends { id: string }> implements OnInit {
     if (value) this.dataSource.sort = value;
   }
 
-  ngOnInit(): void {
+  /**
+   * Every lookup/calendar section shares one route, so the router hands this
+   * component a new config instead of rebuilding it. Reacting to the input rather
+   * than initialising once is what keeps the table in step with the heading.
+   */
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['config']) return;
+
     this.tableFields = this.config.fields.filter(f => !f.hideInTable);
     this.displayedColumns = [...this.tableFields.map(f => f.key)];
     if (this.config.update || this.config.remove) this.displayedColumns.push('actions');
+
+    // Drop the outgoing entity's rows, filter and page before fetching, so its
+    // data never shows through under the new title.
+    this.dataSource.data = [];
+    this.filterText = '';
+    this.dataSource.filter = '';
+    this.dataSource.paginator?.firstPage();
+
     this.load();
   }
 
@@ -121,7 +137,8 @@ export class CrudTableComponent<T extends { id: string }> implements OnInit {
   }
 
   applyFilter(event: Event): void {
-    this.dataSource.filter = (event.target as HTMLInputElement).value.trim().toLowerCase();
+    this.filterText = (event.target as HTMLInputElement).value;
+    this.dataSource.filter = this.filterText.trim().toLowerCase();
   }
 
   openCreate(): void {
