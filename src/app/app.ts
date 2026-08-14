@@ -186,6 +186,13 @@ const chipColor = (name: string, seed = 0): ChipColor => {
               </span>
             </div>
 
+            <!-- Admin console — the only way into /admin, so admins can find it -->
+            <a *ngIf="isAdmin"
+               routerLink="/admin/members"
+               class="flex items-center gap-1.5 border border-[#7E22CE] text-[#7E22CE] px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-[#FAF5FF] whitespace-nowrap flex-shrink-0 transition-colors">
+              Admin
+            </a>
+
             <!-- Profile / settings -->
             <a routerLink="/profile"
                class="flex items-center gap-1.5 bg-[#003bc4] text-white px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-[#002da3] whitespace-nowrap flex-shrink-0 transition-colors">
@@ -244,6 +251,8 @@ export class AppComponent implements OnInit {
   quote: DailyQuote | null = null;
   quoteLoading = true;
   answerRevealed = false;
+
+  get isAdmin(): boolean { return this.currentUser?.accessRole === 'Admin'; }
 
   constructor(private dataService: DataService, private router: Router, private http: HttpClient) {}
 

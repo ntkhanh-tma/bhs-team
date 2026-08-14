@@ -8,6 +8,12 @@ import { toMember, MemberDetailDto } from '../models/api.models';
 
 const REFRESH_KEY = 'bhs_refresh_token';
 
+/**
+ * The password every reset lands on. Must match AuthService.DefaultPassword in the
+ * API — it is shown to the user after a reset, so the two cannot drift.
+ */
+export const DEFAULT_PASSWORD = 'Password#123';
+
 export interface LoginResult {
   /** True when this member has never set a password (imported from the sheet). */
   mustSetPassword: boolean;
@@ -103,6 +109,16 @@ export class AuthService {
   changePassword(currentPassword: string, newPassword: string): Observable<void> {
     return this.http
       .post<void>(`${this.base}/api/auth/change-password`, { currentPassword, newPassword })
+      .pipe(tap(() => this.clearSession()));
+  }
+
+  /**
+   * Self-service reset back to {@link DEFAULT_PASSWORD}. The API revokes every
+   * session, so the local one is cleared too and the member signs in again.
+   */
+  resetMyPassword(): Observable<void> {
+    return this.http
+      .post<void>(`${this.base}/api/auth/reset-my-password`, {})
       .pipe(tap(() => this.clearSession()));
   }
 

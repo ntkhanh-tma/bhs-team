@@ -13,6 +13,7 @@ import { MatInputModule } from '@angular/material/input';
 import { forkJoin } from 'rxjs';
 import { MemberDetailDto } from '../../../core/models/api.models';
 import { describeError } from '../../../core/services/data.service';
+import { DEFAULT_PASSWORD } from '../../../core/services/auth.service';
 import { AdminApiService } from '../admin-api.service';
 import { CrudFormDialogComponent } from '../shared/crud-form-dialog.component';
 import { FieldDef } from '../shared/crud-types';
@@ -97,12 +98,12 @@ import { FieldDef } from '../shared/crud-types';
           <th mat-header-cell *matHeaderCellDef class="!text-right">Actions</th>
           <td mat-cell *matCellDef="let row" class="!text-right whitespace-nowrap">
             <button mat-button (click)="openEdit(row)">Edit</button>
+            <button mat-button (click)="resetPassword(row)">Reset password</button>
             <button mat-button [matMenuTriggerFor]="menu">More</button>
             <mat-menu #menu="matMenu">
               <button mat-menu-item (click)="toggleAdmin(row)">
                 {{ row.accessRole === 'Admin' ? 'Revoke admin' : 'Make admin' }}
               </button>
-              <button mat-menu-item (click)="resetPassword(row)">Reset password</button>
               <button mat-menu-item (click)="deactivate(row)" [disabled]="!row.isActive">
                 Deactivate
               </button>
@@ -231,12 +232,15 @@ export class AdminMembersComponent implements OnInit {
 
   resetPassword(row: MemberDetailDto): void {
     if (!confirm(
-      `Clear ${row.username}'s password? They will be asked to set a new one at next sign-in, ` +
-      'and all their sessions will be revoked.')) return;
+      `Reset ${row.username}'s password to ${DEFAULT_PASSWORD}? They will be asked to set a new ` +
+      'one at next sign-in, and all their sessions will be revoked.')) return;
 
     this.loading = true;
     this.api.resetPassword(row.id).subscribe({
-      next: () => { this.snackBar.open('Password reset.', 'OK', { duration: 3000 }); this.load(); },
+      next: () => {
+        this.snackBar.open(`Password reset to ${DEFAULT_PASSWORD}.`, 'OK', { duration: 6000 });
+        this.load();
+      },
       error: err => { this.loading = false; this.fail(err); },
     });
   }

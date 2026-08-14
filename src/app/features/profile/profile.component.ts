@@ -1,11 +1,12 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Member } from '../../core/models/models';
-import { DataService } from '../../core/services/data.service';
+import { DataService, describeError } from '../../core/services/data.service';
+import { AuthService, DEFAULT_PASSWORD } from '../../core/services/auth.service';
 import { ApiService, DatabaseLookups, ProfileUpdatePayload } from '../../core/services/api.service';
 
 interface ProfileForm {
@@ -289,6 +290,84 @@ const SELECT_STYLE = `background-image:${CHEVRON_SVG};background-repeat:no-repea
                 </div>
 
               </div>
+
+              <!-- ── Password card ─────────────────────────────────────── -->
+              <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-5">
+
+                <div class="px-6 py-4 bg-gradient-to-r from-amber-500 to-orange-500">
+                  <h2 class="text-sm font-bold text-white">Password</h2>
+                  <p class="text-xs text-amber-100 mt-0.5">Change it, or reset it back to the default</p>
+                </div>
+
+                <div class="p-6 space-y-5">
+
+                  <div *ngIf="pwMsg"
+                       class="rounded-xl px-4 py-3 text-sm flex items-center gap-2 border"
+                       [class.bg-green-50]="pwOk"
+                       [class.text-green-700]="pwOk"
+                       [class.border-green-200]="pwOk"
+                       [class.bg-red-50]="!pwOk"
+                       [class.text-red-700]="!pwOk"
+                       [class.border-red-200]="!pwOk">
+                    <span class="font-bold">{{ pwOk ? '&#10003;' : '&#10007;' }}</span>
+                    {{ pwMsg }}
+                  </div>
+
+                  <!-- Change -->
+                  <section>
+                    <h3 class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#94a3b8] mb-3">
+                      <span class="w-1.5 h-4 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></span>
+                      Change password
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label class="block text-xs font-semibold text-[#475569] mb-1.5">Current</label>
+                        <input [(ngModel)]="pwCurrent" type="password" autocomplete="current-password"
+                               class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-semibold text-[#475569] mb-1.5">New</label>
+                        <input [(ngModel)]="pwNew" type="password" autocomplete="new-password"
+                               class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-semibold text-[#475569] mb-1.5">Confirm</label>
+                        <input [(ngModel)]="pwConfirm" type="password" autocomplete="new-password"
+                               class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all" />
+                      </div>
+                    </div>
+                    <p class="text-[10px] text-[#94a3b8] mt-1.5">At least 10 characters. You will be signed out afterwards.</p>
+
+                    <button (click)="changePassword()"
+                            [disabled]="pwBusy"
+                            class="mt-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl
+                                   hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm">
+                      {{ pwBusy ? 'Working&#8230;' : 'Change password' }}
+                    </button>
+                  </section>
+
+                  <!-- Reset to default -->
+                  <section class="border-t border-gray-100 pt-5">
+                    <h3 class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#94a3b8] mb-3">
+                      <span class="w-1.5 h-4 bg-gradient-to-b from-rose-500 to-red-500 rounded-full"></span>
+                      Reset to default
+                    </h3>
+                    <p class="text-xs text-[#64748B]">
+                      Puts your password back to
+                      <span class="font-mono font-semibold text-[#1E293B]">{{ defaultPassword }}</span>.
+                      You will be signed out, and asked to choose a new one at your next sign-in.
+                    </p>
+                    <button (click)="resetMyPassword()"
+                            [disabled]="pwBusy"
+                            class="mt-3 border border-red-300 text-red-600 text-sm font-semibold px-4 py-2.5 rounded-xl
+                                   hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                      {{ pwBusy ? 'Working&#8230;' : 'Reset my password' }}
+                    </button>
+                  </section>
+
+                </div>
+              </div>
+
             </div>
 
           </div>
@@ -305,13 +384,23 @@ export class ProfileComponent implements OnInit, OnDestroy {
   statusMsg = '';
   statusOk = false;
 
+  pwCurrent = '';
+  pwNew = '';
+  pwConfirm = '';
+  pwBusy = false;
+  pwMsg = '';
+  pwOk = false;
+
   readonly selectStyle = SELECT_STYLE;
+  readonly defaultPassword = DEFAULT_PASSWORD;
 
   private destroy$ = new Subject<void>();
 
   constructor(
     private dataService: DataService,
     private apiService: ApiService,
+    private auth: AuthService,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -335,6 +424,52 @@ export class ProfileComponent implements OnInit, OnDestroy {
 
   get usernameChanged(): boolean {
     return !!this.user && this.form.username.trim().toLowerCase() !== this.user.username;
+  }
+
+  // ── Password ────────────────────────────────────────────────────────────────
+
+  changePassword(): void {
+    if (!this.pwCurrent || !this.pwNew) return this.failPassword('Fill in your current and new password.');
+    if (this.pwNew.length < 10) return this.failPassword('The new password must be at least 10 characters.');
+    if (this.pwNew !== this.pwConfirm) return this.failPassword('The new password and its confirmation do not match.');
+
+    this.pwBusy = true;
+    this.pwMsg = '';
+    this.auth.changePassword(this.pwCurrent, this.pwNew).subscribe({
+      // The API revokes every session, so AuthService has already signed us out.
+      next: () => this.afterSignOut('Password changed. Please sign in again.'),
+      error: err => { this.pwBusy = false; this.failPassword(describeError(err)); },
+    });
+  }
+
+  resetMyPassword(): void {
+    if (!confirm(
+      `Reset your password to ${DEFAULT_PASSWORD}? You will be signed out, and asked to ` +
+      'choose a new one at your next sign-in.')) return;
+
+    this.pwBusy = true;
+    this.pwMsg = '';
+    this.auth.resetMyPassword().subscribe({
+      next: () => this.afterSignOut(`Password reset to ${DEFAULT_PASSWORD}. Please sign in again.`),
+      error: err => { this.pwBusy = false; this.failPassword(describeError(err)); },
+    });
+  }
+
+  /**
+   * Both password actions revoke every session, so this card is about to unmount
+   * with the rest of the signed-in view — an alert is the only place left to say
+   * what happened.
+   */
+  private afterSignOut(message: string): void {
+    this.pwBusy = false;
+    this.pwCurrent = this.pwNew = this.pwConfirm = '';
+    alert(message);
+    this.router.navigate(['/home']);
+  }
+
+  private failPassword(message: string): void {
+    this.pwOk = false;
+    this.pwMsg = message;
   }
 
   // ── Input masks ─────────────────────────────────────────────────────────────
