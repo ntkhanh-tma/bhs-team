@@ -24,13 +24,13 @@ jobs:
     steps:
       # ── 1. Source checkout ────────────────────────────────────────────────
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # ── 2. Node.js ───────────────────────────────────────────────────────
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       # ── 3. Dependencies ──────────────────────────────────────────────────
@@ -106,9 +106,13 @@ jobs:
 
       # ── 8. Upload build for the Pages deployment job ─────────────────────
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: docs
+          # v4 started excluding dotfiles by default, which would silently drop the
+          # .nojekyll written above — the thing keeping Pages from mangling the
+          # underscore-prefixed Angular chunks.
+          include-hidden-files: true
 
   deploy:
     name: Deploy
@@ -123,4 +127,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
