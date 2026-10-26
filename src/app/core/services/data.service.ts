@@ -196,9 +196,11 @@ export class DataService {
       md.entries.get(v.username)!.push(v);
     });
 
-    return Array.from(monthMap.entries())
-      .sort(([a], [b]) => b.localeCompare(a))
-      .map(([, data]) => {
+    // Newest month first. Compare numerically: the keys are unpadded ("2026-9"),
+    // so a string sort would rank September above December.
+    return Array.from(monthMap.values())
+      .sort((a, b) => b.year - a.year || b.month - a.month)
+      .map(data => {
         const d = new Date(data.year, data.month - 1, 1);
         const isCurrent = data.year === today.getFullYear() && data.month === today.getMonth() + 1;
         return {
