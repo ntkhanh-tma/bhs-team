@@ -35,7 +35,8 @@ import { FieldDef } from '../shared/crud-types';
       <div>
         <h1 class="text-2xl font-bold text-[#1E293B]">Vacations</h1>
         <p class="text-sm text-[#64748B] mt-1 max-w-2xl">
-          Booking here is on a member's behalf and bypasses the lock period and submit throttle.
+          Booking or editing here is on a member's behalf and bypasses the lock period and submit throttle.
+          Use Edit to move a day to another date, or Delete for leave that was not approved.
         </p>
       </div>
       <button mat-flat-button color="primary" (click)="openCreate()">Add entry</button>
@@ -91,6 +92,7 @@ import { FieldDef } from '../shared/crud-types';
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef class="!text-right">Actions</th>
           <td mat-cell *matCellDef="let row" class="!text-right whitespace-nowrap">
+            <button *ngIf="!row.isDeleted" mat-button (click)="openEdit(row)">Edit</button>
             <button *ngIf="!row.isDeleted" mat-button color="warn" (click)="remove(row)">Delete</button>
             <button *ngIf="row.isDeleted" mat-button (click)="restore(row)">Restore</button>
           </td>
@@ -176,6 +178,34 @@ export class AdminVacationsComponent implements OnInit {
           String(result['memberId']), String(result['date']), String(result['vacationTypeId']),
         ).subscribe({
           next: () => { this.snackBar.open('Entry added.', 'OK', { duration: 2500 }); this.load(); },
+          error: err => { this.loading = false; this.fail(err); },
+        });
+      });
+  }
+
+  openEdit(row: AdminVacation): void {
+    const fields = this.fields.filter(f => f.key !== 'memberId');
+
+    this.dialog
+      .open(CrudFormDialogComponent, {
+        data: {
+          title: `Edit ${row.memberName} (${row.username}) — ${row.date}`,
+          fields,
+          value: { date: row.date, vacationTypeId: row.vacationTypeId },
+        },
+        width: '460px',
+      })
+      .afterClosed()
+      .subscribe((result?: Record<string, unknown>) => {
+        if (!result?.['date'] || !result['vacationTypeId']) return;
+
+        const date = String(result['date']);
+        const vacationTypeId = String(result['vacationTypeId']);
+        if (date === row.date && vacationTypeId === row.vacationTypeId) return;
+
+        this.loading = true;
+        this.api.updateVacation(row.id, date, vacationTypeId).subscribe({
+          next: () => { this.snackBar.open('Entry updated.', 'OK', { duration: 2500 }); this.load(); },
           error: err => { this.loading = false; this.fail(err); },
         });
       });

@@ -26,7 +26,7 @@ export interface AdminOrigin {
 
 export interface AdminVacation {
   id: string; memberId: string; username: string; memberName: string;
-  date: string; type: string; isDeleted: boolean; deletedAt?: string;
+  date: string; type: string; vacationTypeId: string; isDeleted: boolean; deletedAt?: string;
 }
 
 export interface AuditLogEntry {
@@ -116,6 +116,9 @@ export class AdminApiService {
   }
   createVacation(memberId: string, date: string, vacationTypeId: string) {
     return this.http.post(`${this.base}/vacations`, { memberId, date, vacationTypeId });
+  }
+  updateVacation(id: string, date: string, vacationTypeId: string): Observable<AdminVacation> {
+    return this.http.put<AdminVacation>(`${this.base}/vacations/${id}`, { date, vacationTypeId });
   }
   deleteVacation(id: string) { return this.http.delete<void>(`${this.base}/vacations/${id}`); }
   restoreVacation(id: string) { return this.http.post<void>(`${this.base}/vacations/${id}/restore`, {}); }
