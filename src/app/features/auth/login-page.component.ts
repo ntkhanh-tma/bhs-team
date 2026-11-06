@@ -44,7 +44,7 @@ import { describeError } from '../../core/services/data.service';
           </button>
 
           <p class="text-[#94A3B8] text-xs mt-4 text-center">
-            First time here? Sign in with any password and you'll be asked to set a real one.
+            First time here? Sign in with the temporary password from your welcome email and you'll be asked to set your own.
           </p>
         </ng-container>
 

@@ -11,9 +11,8 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { forkJoin } from 'rxjs';
-import { MemberDetailDto } from '../../../core/models/api.models';
+import { MemberCreatedDto, MemberDetailDto, PasswordIssuedDto } from '../../../core/models/api.models';
 import { describeError } from '../../../core/services/data.service';
-import { DEFAULT_PASSWORD } from '../../../core/services/auth.service';
 import { AdminApiService } from '../admin-api.service';
 import { CrudFormDialogComponent } from '../shared/crud-form-dialog.component';
 import { FieldDef } from '../shared/crud-types';
@@ -191,7 +190,10 @@ export class AdminMembersComponent implements OnInit {
   }
 
   openCreate(): void {
-    this.openDialog('Add member', { isActive: true }, body => this.api.createMember(body));
+    this.openDialog('Add member', { isActive: true }, body => this.api.createMember(body), result => {
+      const created = result as MemberCreatedDto;
+      this.announcePassword(created.member.username, created.password);
+    });
   }
 
   openEdit(row: MemberDetailDto): void {
@@ -205,6 +207,7 @@ export class AdminMembersComponent implements OnInit {
     title: string,
     value: Record<string, unknown>,
     submit: (body: Record<string, unknown>) => { subscribe: Function },
+    afterSave?: (result: unknown) => void,
   ): void {
     this.dialog
       .open(CrudFormDialogComponent, { data: { title, fields: this.fields, value }, width: '460px' })
@@ -213,7 +216,11 @@ export class AdminMembersComponent implements OnInit {
         if (!result) return;
         this.loading = true;
         submit(result).subscribe({
-          next: () => { this.snackBar.open('Saved.', 'OK', { duration: 2500 }); this.load(); },
+          next: (saved: unknown) => {
+            if (afterSave) afterSave(saved);
+            else this.snackBar.open('Saved.', 'OK', { duration: 2500 });
+            this.load();
+          },
           error: (err: unknown) => { this.loading = false; this.fail(err); },
         });
       });
@@ -232,13 +239,13 @@ export class AdminMembersComponent implements OnInit {
 
   resetPassword(row: MemberDetailDto): void {
     if (!confirm(
-      `Reset ${row.username}'s password to ${DEFAULT_PASSWORD}? They will be asked to set a new ` +
-      'one at next sign-in, and all their sessions will be revoked.')) return;
+      `Reset ${row.username}'s password? A new temporary password will be emailed to them, ` +
+      'they will be asked to set their own at next sign-in, and all their sessions will be revoked.')) return;
 
     this.loading = true;
     this.api.resetPassword(row.id).subscribe({
-      next: () => {
-        this.snackBar.open(`Password reset to ${DEFAULT_PASSWORD}.`, 'OK', { duration: 6000 });
+      next: result => {
+        this.announcePassword(row.username, result);
         this.load();
       },
       error: err => { this.loading = false; this.fail(err); },
@@ -253,6 +260,21 @@ export class AdminMembersComponent implements OnInit {
       next: () => { this.snackBar.open('Deactivated.', 'OK', { duration: 3000 }); this.load(); },
       error: err => { this.loading = false; this.fail(err); },
     });
+  }
+
+  /**
+   * The API returns the password only when it could not email it (no address on
+   * file, inactive account, or a failed send), and never again after this. A prompt
+   * rather than an alert, because its text stays selectable for copying.
+   */
+  private announcePassword(username: string, result: PasswordIssuedDto): void {
+    if (result.temporaryPassword) {
+      prompt(
+        `Could not email ${username}. Copy their temporary password and pass it on; ` +
+        'it will not be shown again.', result.temporaryPassword);
+    } else {
+      this.snackBar.open(`Temporary password emailed to ${username}.`, 'OK', { duration: 4000 });
+    }
   }
 
   private fail(err: unknown): void {

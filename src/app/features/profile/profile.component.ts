@@ -6,7 +6,7 @@ import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Member } from '../../core/models/models';
 import { DataService, describeError } from '../../core/services/data.service';
-import { AuthService, DEFAULT_PASSWORD } from '../../core/services/auth.service';
+import { AuthService } from '../../core/services/auth.service';
 import { ApiService, DatabaseLookups, ProfileUpdatePayload } from '../../core/services/api.service';
 
 interface ProfileForm {
@@ -346,15 +346,14 @@ const SELECT_STYLE = `background-image:${CHEVRON_SVG};background-repeat:no-repea
                     </button>
                   </section>
 
-                  <!-- Reset to default -->
+                  <!-- Reset to a temporary password -->
                   <section class="border-t border-gray-100 pt-5">
                     <h3 class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#94a3b8] mb-3">
                       <span class="w-1.5 h-4 bg-gradient-to-b from-rose-500 to-red-500 rounded-full"></span>
-                      Reset to default
+                      Reset password
                     </h3>
                     <p class="text-xs text-[#64748B]">
-                      Puts your password back to
-                      <span class="font-mono font-semibold text-[#1E293B]">{{ defaultPassword }}</span>.
+                      Replaces your password with a temporary one, emailed to you.
                       You will be signed out, and asked to choose a new one at your next sign-in.
                     </p>
                     <button (click)="resetMyPassword()"
@@ -392,7 +391,6 @@ export class ProfileComponent implements OnInit, OnDestroy {
   pwOk = false;
 
   readonly selectStyle = SELECT_STYLE;
-  readonly defaultPassword = DEFAULT_PASSWORD;
 
   private destroy$ = new Subject<void>();
 
@@ -444,13 +442,19 @@ export class ProfileComponent implements OnInit, OnDestroy {
 
   resetMyPassword(): void {
     if (!confirm(
-      `Reset your password to ${DEFAULT_PASSWORD}? You will be signed out, and asked to ` +
-      'choose a new one at your next sign-in.')) return;
+      'Reset your password? A temporary password will be emailed to you. You will be ' +
+      'signed out, and asked to choose a new one at your next sign-in.')) return;
 
     this.pwBusy = true;
     this.pwMsg = '';
     this.auth.resetMyPassword().subscribe({
-      next: () => this.afterSignOut(`Password reset to ${DEFAULT_PASSWORD}. Please sign in again.`),
+      next: result => result.temporaryPassword
+        // Not emailed (no address on file, or the send failed): this is the only
+        // time the password is shown, so it goes in a prompt the member can copy from.
+        ? this.afterSignOut(
+            'Your password was reset, but the email could not be sent. Copy your temporary ' +
+            'password now; it will not be shown again.', result.temporaryPassword)
+        : this.afterSignOut('Password reset. Sign in again with the temporary password we emailed you.'),
       error: err => { this.pwBusy = false; this.failPassword(describeError(err)); },
     });
   }
@@ -458,12 +462,14 @@ export class ProfileComponent implements OnInit, OnDestroy {
   /**
    * Both password actions revoke every session, so this card is about to unmount
    * with the rest of the signed-in view — an alert is the only place left to say
-   * what happened.
+   * what happened. A temporary password goes in a prompt instead, whose text stays
+   * selectable for copying.
    */
-  private afterSignOut(message: string): void {
+  private afterSignOut(message: string, temporaryPassword?: string): void {
     this.pwBusy = false;
     this.pwCurrent = this.pwNew = this.pwConfirm = '';
-    alert(message);
+    if (temporaryPassword) prompt(message, temporaryPassword);
+    else alert(message);
     this.router.navigate(['/home']);
   }
 

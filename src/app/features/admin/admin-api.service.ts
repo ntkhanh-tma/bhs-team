@@ -3,8 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
-  AppSettingDto, CountryDto, EventPlanDto, HolidayDto, MemberDetailDto,
-  ReleasePlanDto, VacationTypeDto,
+  AppSettingDto, CountryDto, EventPlanDto, HolidayDto, MemberCreatedDto, MemberDetailDto,
+  PasswordIssuedDto, ReleasePlanDto, VacationTypeDto,
 } from '../../core/models/api.models';
 
 export interface AdminTeam {
@@ -46,8 +46,8 @@ export class AdminApiService {
   listMembers(): Observable<MemberDetailDto[]> {
     return this.http.get<MemberDetailDto[]>(`${this.base}/members`);
   }
-  createMember(body: unknown): Observable<MemberDetailDto> {
-    return this.http.post<MemberDetailDto>(`${this.base}/members`, body);
+  createMember(body: unknown): Observable<MemberCreatedDto> {
+    return this.http.post<MemberCreatedDto>(`${this.base}/members`, body);
   }
   updateMember(id: string, body: unknown): Observable<MemberDetailDto> {
     return this.http.put<MemberDetailDto>(`${this.base}/members/${id}`, body);
@@ -55,8 +55,8 @@ export class AdminApiService {
   setAccessRole(id: string, accessRole: string): Observable<void> {
     return this.http.put<void>(`${this.base}/members/${id}/access-role`, { accessRole });
   }
-  resetPassword(id: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/members/${id}/reset-password`, {});
+  resetPassword(id: string): Observable<PasswordIssuedDto> {
+    return this.http.post<PasswordIssuedDto>(`${this.base}/members/${id}/reset-password`, {});
   }
   deactivateMember(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/members/${id}`);

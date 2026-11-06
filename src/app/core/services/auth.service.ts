@@ -4,7 +4,7 @@ import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { catchError, finalize, map, shareReplay, switchMap, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { Member } from '../models/models';
-import { toMember, MemberDetailDto } from '../models/api.models';
+import { toMember, MemberDetailDto, PasswordIssuedDto } from '../models/api.models';
 
 const REFRESH_KEY = 'bhs_refresh_token';
 const ACCESS_KEY = 'bhs_access_token';
@@ -13,12 +13,6 @@ const USER_KEY = 'bhs_user';
 
 /** Treat a token expiring within this window as already gone. */
 const EXPIRY_SKEW_MS = 60_000;
-
-/**
- * The password every reset lands on. Must match AuthService.DefaultPassword in the
- * API — it is shown to the user after a reset, so the two cannot drift.
- */
-export const DEFAULT_PASSWORD = 'Password#123';
 
 export interface LoginResult {
   /** True when this member has never set a password (imported from the sheet). */
@@ -170,12 +164,12 @@ export class AuthService {
   }
 
   /**
-   * Self-service reset back to {@link DEFAULT_PASSWORD}. The API revokes every
-   * session, so the local one is cleared too and the member signs in again.
+   * Self-service reset to a fresh temporary password, which the API emails. The API
+   * revokes every session, so the local one is cleared too and the member signs in again.
    */
-  resetMyPassword(): Observable<void> {
+  resetMyPassword(): Observable<PasswordIssuedDto> {
     return this.http
-      .post<void>(`${this.base}/api/auth/reset-my-password`, {})
+      .post<PasswordIssuedDto>(`${this.base}/api/auth/reset-my-password`, {})
       .pipe(tap(() => this.clearSession()));
   }
 

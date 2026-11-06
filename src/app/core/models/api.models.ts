@@ -23,6 +23,21 @@ export interface MemberDetailDto extends MemberSummaryDto {
   isActive?: boolean;
 }
 
+/**
+ * Outcome of issuing a temporary password (new account or reset). The password is
+ * only returned when the API could not email it, so when it is present, showing it
+ * now is the only way it ever reaches the member.
+ */
+export interface PasswordIssuedDto {
+  emailed: boolean;
+  temporaryPassword: string | null;
+}
+
+export interface MemberCreatedDto {
+  member: MemberDetailDto;
+  password: PasswordIssuedDto;
+}
+
 export interface VacationDto {
   id: string;
   memberId: string;
