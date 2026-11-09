@@ -1,8 +1,9 @@
-import { Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, OnDestroy, OnInit, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { DataService } from '../../core/services/data.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { Holiday, Vacation, VacationType } from '../../core/models/models';
 
 interface DialogDay {
@@ -189,6 +190,7 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
   submitError: string | null = null;
   lockRemainingMs = 0;
 
+  private readonly settings = inject(SettingsService);
   private holidays: Holiday[] = [];
   private allVacations: Vacation[] = [];
   private lockInterval: ReturnType<typeof setInterval> | null = null;
@@ -325,7 +327,8 @@ export class RegisterVacationDialogComponent implements OnInit, OnDestroy {
         isCurrentMonth: true,
         isWeekend: dow === 0 || dow === 6,
         isPast: date < new Date(today.getFullYear(), today.getMonth(), today.getDate()),
-        isHoliday: this.holidays.some(h => h.date === dateStr),
+        // Only holidays the team observes are unselectable (e.g. VN, not AU).
+        isHoliday: this.holidays.some(h => h.date === dateStr && this.settings.blocksBooking(h)),
         isSelected: this.selectedDates.includes(dateStr),
         isToday: dateStr === this.dataService.formatDate(today),
       });

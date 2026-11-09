@@ -100,6 +100,7 @@ export class ApiService {
         date: h.date,
         name: (h.name || 'Holiday').trim(),
         country: h.country || h.countryCode || undefined,
+        countryCode: h.countryCode || undefined,
       }))),
     );
   }

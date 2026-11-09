@@ -32,6 +32,7 @@ export interface Holiday {
   date: string; // YYYY-MM-DD
   name: string;
   country?: string;
+  countryCode?: string;
 }
 
 export interface Vacation {

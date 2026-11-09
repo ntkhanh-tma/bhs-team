@@ -25,6 +25,8 @@ export class SettingsService {
   readonly allowPastDates = signal(false);
   readonly allowHolidays = signal(false);
   readonly maxMonthsAhead = signal(12);
+  /** Countries whose holidays block booking — independent of the sidebar list. */
+  readonly bookingHolidayCountryCodes = signal<string[]>(['VN']);
   readonly upcomingWindowDays = signal(30);
   readonly holidayCountryCodes = signal<string[]>(['VN']);
   readonly teamColors = signal<TeamColor[]>([]);
@@ -65,6 +67,7 @@ export class SettingsService {
     this.allowPastDates.set(bool('booking.allowPastDates', false));
     this.allowHolidays.set(bool('booking.allowHolidays', false));
     this.maxMonthsAhead.set(int('booking.maxMonthsAhead', 12));
+    this.bookingHolidayCountryCodes.set(json<string[]>('booking.holidayCountryCodes', ['VN']));
     this.upcomingWindowDays.set(int('sidebar.upcomingWindowDays', 30));
     this.holidayCountryCodes.set(json<string[]>('sidebar.holidayCountryCodes', ['VN']));
     this.teamColors.set(json<TeamColor[]>('ui.teamColors', []));
@@ -85,6 +88,17 @@ export class SettingsService {
     const code = (countryCode ?? '').toLowerCase();
     const name = (countryName ?? '').toLowerCase();
     return codes.some(c => c === code || (c === 'vn' && name.includes('viet')));
+  }
+
+  /**
+   * Mirrors the server rule: a holiday blocks booking only when holidays are not
+   * allowed and it belongs to a country in booking.holidayCountryCodes. The VN
+   * team can therefore book leave on AU holidays such as Christmas.
+   */
+  blocksBooking(holiday: { countryCode?: string }): boolean {
+    if (this.allowHolidays()) return false;
+    const code = (holiday.countryCode ?? '').toUpperCase();
+    return !!code && this.bookingHolidayCountryCodes().some(c => c.toUpperCase() === code);
   }
 
   /**

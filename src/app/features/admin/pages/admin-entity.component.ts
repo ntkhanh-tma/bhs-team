@@ -156,8 +156,8 @@ export class AdminEntityComponent {
           title: 'Holidays',
           singular: 'holiday',
           description:
-            'Public holidays. These block booking for the countries listed in ' +
-            'Settings → sidebar.holidayCountryCodes.',
+            'Public holidays. These block booking only for the countries listed in ' +
+            'Settings → booking.holidayCountryCodes (the sidebar list is display-only).',
           fields: [
             { key: 'date', label: 'Date', kind: 'date', required: true },
             { key: 'name', label: 'Name', kind: 'text', required: true },
