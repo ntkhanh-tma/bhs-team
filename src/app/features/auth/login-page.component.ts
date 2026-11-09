@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { describeError } from '../../core/services/data.service';
+import { ForgotPasswordFormComponent } from '../../shared/components/forgot-password-form.component';
 
 /**
  * Real sign-in, replacing the username-only dialog. Members imported from the
@@ -13,7 +14,7 @@ import { describeError } from '../../core/services/data.service';
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ForgotPasswordFormComponent],
   template: `
     <div class="min-h-[70vh] flex items-center justify-center px-4">
       <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 border border-gray-100">
@@ -29,7 +30,13 @@ import { describeError } from '../../core/services/data.service';
                  class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4
                         focus:outline-none focus:ring-2 focus:ring-[#003bc4] focus:border-transparent" />
 
-          <label class="block text-sm font-medium text-[#1E293B] mb-2">Password</label>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium text-[#1E293B]">Password</label>
+            <button type="button" (click)="openForgot()" [disabled]="busy"
+                    class="text-xs font-medium text-[#003bc4] hover:underline disabled:opacity-60">
+              Forgot password?
+            </button>
+          </div>
           <input [(ngModel)]="password" type="password" name="password" autocomplete="current-password"
                  placeholder="Enter password" [disabled]="busy" (keydown.enter)="onLogin()"
                  class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm
@@ -48,11 +55,17 @@ import { describeError } from '../../core/services/data.service';
           </p>
         </ng-container>
 
-        <!-- Step 2: first-login password setup -->
+        <!-- Forgot password: emails a temporary password -->
+        <ng-container *ngIf="step === 'forgot'">
+          <h2 class="text-2xl font-bold text-[#1E293B] mb-1">Reset password</h2>
+          <app-forgot-password-form [initialValue]="username" (back)="backToSignIn()"></app-forgot-password-form>
+        </ng-container>
+
+        <!-- Step 2: choose a password (first sign-in, or after a temporary one) -->
         <ng-container *ngIf="step === 'set-password'">
           <h2 class="text-2xl font-bold text-[#1E293B]">Choose a password</h2>
           <p class="text-[#64748B] text-sm mt-1 mb-6">
-            Your account was migrated from the old spreadsheet and has no password yet.
+            Set your own password to finish signing in.
           </p>
 
           <label class="block text-sm font-medium text-[#1E293B] mb-2">New password</label>
@@ -85,7 +98,7 @@ export class LoginPageComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  step: 'credentials' | 'set-password' = 'credentials';
+  step: 'credentials' | 'forgot' | 'set-password' = 'credentials';
   username = '';
   password = '';
   newPassword = '';
@@ -118,6 +131,17 @@ export class LoginPageComponent {
         this.error = describeError(err);
       },
     });
+  }
+
+  openForgot(): void {
+    this.error = '';
+    this.step = 'forgot';
+  }
+
+  backToSignIn(): void {
+    this.password = '';
+    this.error = '';
+    this.step = 'credentials';
   }
 
   onSetPassword(): void {

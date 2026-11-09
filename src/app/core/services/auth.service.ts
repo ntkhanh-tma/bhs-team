@@ -173,6 +173,16 @@ export class AuthService {
       .pipe(tap(() => this.clearSession()));
   }
 
+  /**
+   * Forgot password, from the sign-in screen. The API answers 202 whether or not the
+   * account exists, and never returns the password — it only goes to the member's inbox.
+   */
+  forgotPassword(usernameOrEmail: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/api/auth/forgot-password`, {
+      usernameOrEmail: usernameOrEmail.trim(),
+    });
+  }
+
   logout(): void {
     const refreshToken = this.storedRefreshToken;
     if (refreshToken) {

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 import { describeError } from '../../core/services/data.service';
+import { ForgotPasswordFormComponent } from './forgot-password-form.component';
 
 /**
  * Modal sign-in. Same @Output contract as the username-only version it replaces,
@@ -12,7 +13,7 @@ import { describeError } from '../../core/services/data.service';
 @Component({
   selector: 'app-login-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ForgotPasswordFormComponent],
   template: `
     <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
          (click)="onBackdropClick($event)">
@@ -21,14 +22,8 @@ import { describeError } from '../../core/services/data.service';
 
         <div class="flex justify-between items-start mb-6">
           <div>
-            <h2 class="text-2xl font-bold text-[#1E293B]">
-              {{ step === 'credentials' ? 'Welcome Back' : 'Choose a password' }}
-            </h2>
-            <p class="text-[#64748B] text-sm mt-1">
-              {{ step === 'credentials'
-                  ? 'Sign in to continue.'
-                  : 'Your account has no password yet.' }}
-            </p>
+            <h2 class="text-2xl font-bold text-[#1E293B]">{{ heading }}</h2>
+            <p *ngIf="subheading" class="text-[#64748B] text-sm mt-1">{{ subheading }}</p>
           </div>
           <button (click)="close.emit()"
             class="text-[#64748B] hover:text-[#1E293B] text-xl leading-none">&times;</button>
@@ -41,12 +36,21 @@ import { describeError } from '../../core/services/data.service';
                  class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm mb-4
                         focus:outline-none focus:ring-2 focus:ring-[#003bc4] focus:border-transparent" />
 
-          <label class="block text-sm font-medium text-[#1E293B] mb-2">Password</label>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium text-[#1E293B]">Password</label>
+            <button type="button" (click)="step = 'forgot'; error = ''" [disabled]="busy"
+                    class="text-xs font-medium text-[#003bc4] hover:underline disabled:opacity-60">
+              Forgot password?
+            </button>
+          </div>
           <input [(ngModel)]="password" name="password" type="password" autocomplete="current-password"
                  placeholder="Enter password" [disabled]="busy" (keydown.enter)="onLogin()"
                  class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm
                         focus:outline-none focus:ring-2 focus:ring-[#003bc4] focus:border-transparent" />
         </ng-container>
+
+        <app-forgot-password-form *ngIf="step === 'forgot'" [initialValue]="username"
+                                  (back)="step = 'credentials'; password = ''"></app-forgot-password-form>
 
         <ng-container *ngIf="step === 'set-password'">
           <label class="block text-sm font-medium text-[#1E293B] mb-2">New password</label>
@@ -62,9 +66,9 @@ import { describeError } from '../../core/services/data.service';
                         focus:outline-none focus:ring-2 focus:ring-[#003bc4] focus:border-transparent" />
         </ng-container>
 
-        <p *ngIf="error" class="text-red-500 text-xs mt-3">{{ error }}</p>
+        <p *ngIf="error && step !== 'forgot'" class="text-red-500 text-xs mt-3">{{ error }}</p>
 
-        <div class="flex gap-3 mt-6">
+        <div *ngIf="step !== 'forgot'" class="flex gap-3 mt-6">
           <button (click)="close.emit()" [disabled]="busy"
             class="flex-1 border border-gray-200 text-[#1E293B] rounded-lg py-2.5 text-sm font-medium
                    hover:bg-gray-50 disabled:opacity-60">
@@ -86,7 +90,19 @@ export class LoginDialogComponent {
 
   private readonly auth = inject(AuthService);
 
-  step: 'credentials' | 'set-password' = 'credentials';
+  step: 'credentials' | 'forgot' | 'set-password' = 'credentials';
+
+  get heading(): string {
+    return this.step === 'credentials' ? 'Welcome Back'
+      : this.step === 'forgot' ? 'Reset password'
+      : 'Choose a password';
+  }
+
+  get subheading(): string {
+    return this.step === 'credentials' ? 'Sign in to continue.'
+      : this.step === 'set-password' ? 'Set your own password to finish signing in.'
+      : '';
+  }
   username = '';
   password = '';
   newPassword = '';
